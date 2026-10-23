@@ -1,5 +1,7 @@
 # MNIST üzerinde PGD ile dayanıklı öğrenme
 
+[Public GitHub deposu](https://github.com/emirbakac/cmp4509-madry-mnist) · [Notebook’u Colab’da aç](https://colab.research.google.com/github/emirbakac/cmp4509-madry-mnist/blob/main/notebooks/01_mnist_reproduction.ipynb)
+
 CMP4509 Deep Learning grup projesi: Madry ve arkadaşlarının **“Towards Deep Learning Models Resistant to Adversarial Attacks”** çalışmasının ana fikrini, ücretsiz Colab/Kaggle GPU'larında çalışabilecek küçük bir PyTorch deneyiyle sınamak.
 
 **Araştırma sorumuz:** Aynı ağı normal eğitimle ve PGD adversarial training ile eğittiğimizde, temiz görüntü doğruluğu ve güçlü PGD saldırısı altındaki doğruluk nasıl değişiyor?

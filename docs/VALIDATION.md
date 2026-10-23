@@ -4,7 +4,7 @@ Bu kayıt yazılım kontrolüdür; makalenin ana sonucunun tekrarlandığı anla
 
 - `python -m unittest discover -s tests -v`: **17 test geçti**.
 - Gerçek MNIST ile `smoke`, seed 0: baseline ve PGD adversarial eğitim, temiz/FGSM/PGD değerlendirme, checkpoint, CSV ve görseller başarıyla üretildi (CPU).
-- Bağımsız notebook'un bütün çalışma hücreleri yukarıdan aşağı, hata olmadan çalıştırıldı. İzole klasörde kaynaklar notebook tarafından oluşturuldu; daha önce indirilen gerçek MNIST önbelleği kullanıldı. Notebook `auto` cihaz seçimiyle Apple MPS üzerinde çalıştı. İlk sürüm 30 hücreydi; üç kaynak-belge hücresi eklenen son sürüm 33 hücredir.
+- Bağımsız notebook'un bütün çalışma hücreleri yukarıdan aşağı, hata olmadan çalıştırıldı. İzole klasörde kaynaklar notebook tarafından oluşturuldu; daha önce indirilen gerçek MNIST önbelleği kullanıldı. Notebook `auto` cihaz seçimiyle Apple MPS üzerinde çalıştı. İlk sürüm 30 hücreydi; üç kaynak-belge hücresi eklenen son sürümün 33 hücresi de tekrar çalıştırıldı; hata yok. Yeniden çalıştırma mevcut checkpoint’lerden devam etmeyi de doğruladı.
 - Epoch sınırında kesilip devam edilen CPU adversarial eğitim, kesintisiz eğitimle aynı ağırlıkları verdi.
 - Saldırı sınırları, temiz girişteki hataların korunması, restart/ara-adım başarısızlıklarının kaybolmaması, model modunun ve gradientlerin korunması test edildi.
 - Farklı protokollerin ayrı gruplanması, örnek standart sapması (`ddof=1`) ve yinelenen seed reddi doğrulandı.

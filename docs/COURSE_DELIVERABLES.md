@@ -4,7 +4,7 @@ Bu belge ders teslimlerini ve deneylerden toplanacak kanıtları izler. Tarihler
 
 | Teslim | Tarih / şart | Şimdiki durum |
 |---|---|---|
-| Public GitHub deposu | Kaynak + tekrar üretim talimatları; raporda bağlantısı olmalı | Yerel başlangıç hazırlanıyor; yayınlanma durumunu gerçek GitHub bağlantısıyla doğrula |
+| Public GitHub deposu | Kaynak + tekrar üretim talimatları; raporda bağlantısı olmalı | [Yayımlandı: emirbakac/cmp4509-madry-mnist](https://github.com/emirbakac/cmp4509-madry-mnist) |
 | Bağımsız notebook | Temiz Colab/Kaggle oturumunda yukarıdan aşağı çalışmalı | Varsayılan smoke; gerçek GPU sonuçları kullanıcı tarafından çalıştırılacak |
 | Sunum | 30 Kasım **veya** 7 Aralık 2026; QA dahil 10 dakika | Grubun kesin tarihini ders duyurusundan netleştir |
 | Rapor PDF | **13 Aralık 2026, 23:59**; Teams üzerinden | Şablon ve bilimsel deney sonuçları bekleniyor |
