@@ -1,0 +1,8 @@
+{
+  "name": "pilot", "epochs": 3, "batch_size": 128, "lr": 0.001,
+  "width": 16, "hidden": 128, "split_seed": 2026, "val_size": 5000,
+  "train_limit": 10000, "val_limit": 1000, "test_limit": 1000, "num_workers": 0,
+  "epsilon": 0.3, "train_alpha": 0.01, "train_steps": 10,
+  "val_steps": 10, "val_restarts": 1,
+  "eval_alpha": 0.01, "eval_steps": 40, "eval_restarts": 3, "eval_seed": 12345
+}

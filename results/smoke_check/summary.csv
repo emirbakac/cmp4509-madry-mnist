@@ -1,0 +1,3 @@
+dataset,config_name,protocol_id,mode,n_test,eval_steps,eval_restarts,epsilon,n_seeds,seeds,status,clean_accuracy_mean,clean_accuracy_std,fgsm_accuracy_mean,fgsm_accuracy_std,pgd_accuracy_mean,pgd_accuracy_std,combined_accuracy_mean,combined_accuracy_std
+MNIST,smoke,0992c611394368c0,adversarial,64,5,2,0.3,1,0,SMOKE_ONLY,0.078125,,0.078125,,0.078125,,0.078125,
+MNIST,smoke,0992c611394368c0,baseline,64,5,2,0.3,1,0,SMOKE_ONLY,0.078125,,0.078125,,0.078125,,0.078125,

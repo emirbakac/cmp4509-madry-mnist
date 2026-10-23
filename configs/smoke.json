@@ -1,0 +1,8 @@
+{
+  "name": "smoke", "epochs": 1, "batch_size": 64, "lr": 0.001,
+  "width": 8, "hidden": 32, "split_seed": 2026, "val_size": 5000,
+  "train_limit": 256, "val_limit": 64, "test_limit": 64, "num_workers": 0,
+  "epsilon": 0.3, "train_alpha": 0.01, "train_steps": 2,
+  "val_steps": 3, "val_restarts": 1,
+  "eval_alpha": 0.01, "eval_steps": 5, "eval_restarts": 2, "eval_seed": 12345
+}

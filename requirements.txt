@@ -1,0 +1,7 @@
+# Keep the platform's compatible CUDA torch/torchvision pair when already installed.
+# Exact versions and hardware are saved into each run's environment.json.
+torch>=2.5,<3
+torchvision>=0.20,<1
+numpy>=1.26,<3
+matplotlib>=3.8,<4
+pandas>=2.2,<4
