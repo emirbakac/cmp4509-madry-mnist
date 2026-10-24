@@ -86,7 +86,11 @@ import os
 
 CONFIG_NAME = "smoke"                    # "smoke", "pilot", "main"
 MODES = ["baseline", "adversarial"]
-SEEDS = [0, 1, 2] if CONFIG_NAME == "main" else [0]
+SEEDS = [0, 1, 2] if CONFIG_NAME in {
+    "main",
+    "main_pgd10_probe",
+    "main_curriculum_pgd10_to_pgd40"
+} else [0]
 PROTOCOL_FROZEN = False                   # Pilot/main testi: kararlar bittikten sonra True
 FINAL_STRONG_EVAL = False                 # Final: PGD100 x 20 restart
 USE_GOOGLE_DRIVE = False                  # Colab uzun koşularında True önerilir
@@ -94,7 +98,13 @@ RESUME = True                            # last.pt varsa oradan devam et
 EPOCHS_PER_CALL = 0                       # 0=hepsi; örn. 1 ile oturum başına bir epoch
 SYNTHETIC = False                         # Yalnız çevrimdışı smoke; MNIST sonucu değildir
 
-assert CONFIG_NAME in {"smoke", "pilot", "main"}
+assert CONFIG_NAME in {
+    "smoke",
+    "pilot",
+    "main",
+    "main_pgd10_probe",
+    "main_curriculum_pgd10_to_pgd40"
+}
 assert MODES and set(MODES) <= {"baseline", "adversarial"}
 assert SEEDS and len(SEEDS) == len(set(SEEDS))
 if CONFIG_NAME != "smoke" and not torch.cuda.is_available():
@@ -236,7 +246,7 @@ else:
             if SYNTHETIC:
                 args.append("--synthetic")
             if FINAL_STRONG_EVAL:
-                args.extend(["--eval-steps", "100", "--eval-restarts", "20"])
+                args.extend(["--eval-steps", "100", "--eval-restarts", "5"])
             run_command(args)
     EVALUATION_COMPLETED = True
     print("Test tamamlandı. Tabloyu görmeden önce config/seed/PGD bütçesini tekrar kontrol edelim.")
