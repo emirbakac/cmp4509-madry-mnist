@@ -63,6 +63,7 @@ class PipelineTests(unittest.TestCase):
             model = SmallCNN(width=2, hidden=4)
             self.assertTrue(train(model, self.loaders(), torch.device('cpu'), cfg, args, full))
             expected = {name: value.detach().clone() for name, value in model.state_dict().items()}
+            expected_state = torch.load(full / 'last.pt', weights_only=False)
             seed_everything(7)
             model = SmallCNN(width=2, hidden=4)
             args.epochs_per_call = 1
@@ -77,6 +78,18 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(state['epoch'], 2)
             self.assertEqual(len(state['history']), 2)
             self.assertTrue((chunked / 'best.pt').is_file())
+            self.assertTrue(torch.equal(expected_state['rng']['torch'], state['rng']['torch']))
+            self.assertTrue(torch.equal(expected_state['rng']['loader'], state['rng']['loader']))
+            self.assertEqual(expected_state['rng']['python'], state['rng']['python'])
+            self.assertTrue(np.array_equal(expected_state['rng']['numpy'][1], state['rng']['numpy'][1]))
+            self.assertEqual(expected_state['optimizer']['param_groups'], state['optimizer']['param_groups'])
+            for parameter, values in expected_state['optimizer']['state'].items():
+                for field, expected_value in values.items():
+                    actual = state['optimizer']['state'][parameter][field]
+                    if torch.is_tensor(expected_value):
+                        self.assertTrue(torch.equal(expected_value, actual), field)
+                    else:
+                        self.assertEqual(expected_value, actual)
 
     def test_aggregation_separates_protocols_and_uses_sample_sd(self):
         with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()):

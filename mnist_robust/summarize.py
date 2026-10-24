@@ -23,8 +23,24 @@ def summarize(runs, output, allow_single_seed=False):
         frame['source'] = str(path)
         frames.append(frame)
     data = pd.concat(frames, ignore_index=True)
-    if data.duplicated(KEYS + ['seed']).any():
-        raise ValueError('Duplicate seed for an identical protocol. Use one run root per experiment.')
+    required = KEYS + ['seed'] + METRICS
+    if set(required) - set(data.columns) or data[required].isna().any().any():
+        raise ValueError('Evaluation rows have missing required fields.')
+    if not np.isfinite(data[METRICS].to_numpy(dtype=float)).all() or not data[METRICS].ge(0).all().all() or not data[METRICS].le(1).all().all():
+        raise ValueError('Accuracy measurements must be finite fractions in [0, 1].')
+    if ((data.fgsm_accuracy > data.clean_accuracy) | (data.pgd_accuracy > data.clean_accuracy)
+            | (data.combined_accuracy > data[['fgsm_accuracy', 'pgd_accuracy']].min(axis=1))).any():
+        raise ValueError('Robust/combined accuracy violates clean-correctness inclusion.')
+    duplicate_keys = KEYS + ['seed']
+    repeated = data[data.duplicated(duplicate_keys, keep=False)]
+    for _, group in repeated.groupby(duplicate_keys, dropna=False):
+        identical = METRICS + ['checkpoint_sha256', 'selected_epoch']
+        if (set(identical) - set(group.columns) or group[identical].isna().any().any()
+                or any(group[column].nunique() != 1 for column in identical)):
+            raise ValueError('Duplicate seed for an identical protocol has conflicting or unverifiable evaluations. Use separate run roots.')
+    if len(repeated):
+        print('Identical repeat evaluations of the same checkpoint are counted once per training seed.')
+        data = data.drop_duplicates(duplicate_keys, keep='first')
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     data.to_csv(output / 'per_seed.csv', index=False)
@@ -53,22 +69,30 @@ def summarize(runs, output, allow_single_seed=False):
         values = [fmt(metric) for metric in METRICS]
         lines.append(f"| {row['dataset']}/{row['config_name']}/{row['protocol_id']} | {row['mode']} | {row['seeds']} | " + ' | '.join(values) + f" | {row['status']} |")
     lines += ['', 'Combined accuracy survives clean + FGSM + every retained PGD candidate. '
-              'PGD accuracy is an empirical result for the stated attack; it does not certify robustness.']
+              'PGD accuracy is an empirical result for the stated attack; it does not certify robustness.',
+              'Error bars show descriptive sample SD, not bounded confidence intervals; mean ± SD may extend outside 0–100%.']
     (output / 'summary.md').write_text('\n'.join(lines) + '\n')
     groups = list(summary.groupby(['dataset', 'config_name', 'protocol_id'], sort=True))
     fig, axes = plt.subplots(len(groups), 1, figsize=(9, 4.2*len(groups)), squeeze=False)
     for ax, ((dataset, config, protocol), group) in zip(axes[:, 0], groups):
         x = np.arange(len(METRICS))
         width = 0.75 / len(group)
+        lower, upper = 0.0, 100.0
         for i, (_, row) in enumerate(group.iterrows()):
             means = [100*row[m+'_mean'] for m in METRICS]
             sd = np.array([100*row[m+'_std'] for m in METRICS])
+            finite = np.isfinite(sd)
+            if finite.any():
+                mean_array = np.asarray(means)
+                lower = min(lower, float(np.min(mean_array[finite] - sd[finite])))
+                upper = max(upper, float(np.max(mean_array[finite] + sd[finite])))
             # Do not draw a zero-width error bar for an undefined single-seed SD.
             ax.bar(x + (i - (len(group)-1)/2)*width, means, width,
                    yerr=sd if np.isfinite(sd).all() else None, capsize=4,
                    label=f"{row['mode']} (n={row['n_seeds']})")
         ax.set_xticks(x, ['Clean', 'FGSM', 'PGD', 'Combined'])
-        ax.set_ylim(0, 100)
+        pad = 0.02 * (upper - lower)
+        ax.set_ylim(lower - pad if lower < 0 else 0, upper + pad if upper > 100 else 100)
         ax.set_ylabel('Accuracy (%)')
         suffix = ' — PIPELINE CHECK ONLY' if config == 'smoke' or dataset == 'synthetic' else ''
         ax.set_title(f'{dataset} / {config}: PGD-{int(group.iloc[0].eval_steps)} × {int(group.iloc[0].eval_restarts)}{suffix}')
