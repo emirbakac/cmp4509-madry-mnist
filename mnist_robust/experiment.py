@@ -111,8 +111,20 @@ def train(model, loaders, device, cfg, args, run_dir):
         for x, y in loaders['train']:
             x, y = x.to(device), y.to(device)
             if args.mode == 'adversarial':
-                x = pgd_linf(model, x, y, eps=cfg['epsilon'], alpha=cfg['train_alpha'],
-                             steps=cfg['train_steps'], restarts=1, track_best=False)
+                steps = cfg['train_steps']
+            
+                curriculum = cfg.get('curriculum')
+                if curriculum is not None and epoch < 3:
+                    steps = curriculum['epochs_1_to_3']['train_steps']
+            
+                x = pgd_linf(
+                    model, x, y,
+                    eps=cfg['epsilon'],
+                    alpha=cfg['train_alpha'],
+                    steps=steps,
+                    restarts=1,
+                    track_best=False
+                )
             optimizer.zero_grad(set_to_none=True)
             logits = model(x)
             loss = F.cross_entropy(logits, y)
