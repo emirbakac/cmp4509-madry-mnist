@@ -76,7 +76,7 @@ md("""
 
 İlk çalıştırmada hiçbir şeyi değiştirmeden ilerle. Sonra `pilot` ile öğrenme ve süreyi gözle. `main`, her iki eğitim yöntemi için üç seed kullanır. **Eğitim ve model seçimi doğrulama setiyle yapılır.** `EPOCHS_PER_CALL=1` ile ücretsiz GPU oturumlarında eğitimi birer epoch parçalara ayırabilirsin; test bütün epoch'lar tamamlanana kadar bekler. `pilot/main` testini ancak bütün ayarları dondurunca `PROTOCOL_FROZEN = True` ile aç.
 
-Final rapor için `CONFIG_NAME = "main"`, `PROTOCOL_FROZEN = True`, `FINAL_STRONG_EVAL = True` kullan: 100 PGD adımı × 20 restart. Önceden eğitilmiş checkpoint varsa eğitim son tamamlanan epoch'tan devam eder; tamamlanmışsa yalnız değerlendirme ilerler.
+Final rapor için `CONFIG_NAME = "main"`, `PROTOCOL_FROZEN = True`, `FINAL_STRONG_EVAL = True` kullan: 100 PGD adımı × 5 restart. Önceden eğitilmiş checkpoint varsa eğitim son tamamlanan epoch'tan devam eder; tamamlanmışsa yalnız değerlendirme ilerler.
 
 Colab'da uzun koşudan önce `USE_GOOGLE_DRIVE = True` yap. Drive bağlamak kullanıcı girişini gerektirebilir. Kaggle çıktıları `/kaggle/working` altında saklanır; oturum sonunda **Save Version** yap. Aynı kayıt kökünde config'ini değiştirme: değiştirilmiş deney için yeni config adı/kayıt kökü kullan.
 """)
@@ -85,14 +85,18 @@ from pathlib import Path
 import os
 
 CONFIG_NAME = "smoke"                    # "smoke", "pilot", "main"
-MODES = ["baseline", "adversarial"]
+MODES = (
+    ["baseline", "adversarial"]
+    if CONFIG_NAME in {"smoke", "pilot", "main"}
+    else ["adversarial"]
+)
 SEEDS = [0, 1, 2] if CONFIG_NAME in {
     "main",
     "main_pgd10_probe",
     "main_curriculum_pgd10_to_pgd40"
 } else [0]
 PROTOCOL_FROZEN = False                   # Pilot/main testi: kararlar bittikten sonra True
-FINAL_STRONG_EVAL = False                 # Final: PGD100 x 20 restart
+FINAL_STRONG_EVAL = False                 # Final: PGD100 x 5 restart
 USE_GOOGLE_DRIVE = False                  # Colab uzun koşularında True önerilir
 RESUME = True                            # last.pt varsa oradan devam et
 EPOCHS_PER_CALL = 0                       # 0=hepsi; örn. 1 ile oturum başına bir epoch
@@ -223,7 +227,7 @@ md("""
 
 Smoke'ta küçük test otomatik açık. Pilot/main'de `PROTOCOL_FROZEN=True` gereklidir; önceki hücrelerin tamamı çalışabilir ama bu izin verilmeden test yapılmaz.
 
-Bir örnek herhangi bir restart/PGD adımında yanlış sınıflandırıldıysa saldırı başarılı sayılır. Restart doğruluklarının ortalamasını almak fazla iyimser sonuç verir. Temizken yanlış olan bir örnek de dayanıklı sayılmaz. FGSM tek adımdır; PGD yinelemelidir. Final PGD100×20, `main` eğitim PGD40'tan güçlüdür ve pahalı olabilir.
+Bir örnek herhangi bir restart/PGD adımında yanlış sınıflandırıldıysa saldırı başarılı sayılır. Restart doğruluklarının ortalamasını almak fazla iyimser sonuç verir. Temizken yanlış olan bir örnek de dayanıklı sayılmaz. FGSM tek adımdır; PGD yinelemelidir. Final PGD100×5, `main` eğitim PGD40'tan güçlüdür ve pahalı olabilir.
 
 Bu test seçilen saldırı altında ampirik dayanıklılık ölçer; bütün olası saldırılara karşı garanti vermez.
 """)
@@ -341,7 +345,7 @@ md("""
 
 - **Smoke tamamlandıysa:** cihaz/config/tablo ekran görüntüsünü ve arşivi sakla; pilot normal eğitimle başla.
 - **Pilot tamamlandıysa:** öğrenme eğrilerini ve süreyi karşılaştır; main bütçesini kararlaştır, seed listesini sabitle.
-- **Üç seed'li main eğitimleri tamamlandıysa:** ayarları dondur, bütün checkpoint'leri aynı PGD100×20 ile test et.
+- **Üç seed'li main eğitimleri tamamlandıysa:** ayarları dondur, bütün checkpoint'leri aynı PGD100×5 ile test et.
 - **Gerçek sonuçlar hazırsa:** seed tablosu, ortalama ± std, eğitim maliyeti ve makaleden farkları raporla. Gerçek ders LaTeX şablonunu kullan; public repo bağlantısını ekle.
 
 Sunumda her grup üyesi şu zinciri açıklayabilsin: **tehdit modeli → min–max → PGD → adversarial training → güçlü değerlendirme → sonuç ve sınırlılıklar**.
