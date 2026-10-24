@@ -1,72 +1,34 @@
-# CMP4509 teslim kontrol listesi
+# CMP4509 teslim durumu ve son kontrol listesi
 
-Bu belge ders teslimlerini ve deneylerden toplanacak kanıtları izler. Tarihler Türkiye saatine göredir. Paper sign-up tamamlandı.
+Tarihler Türkiye saatine göredir. Paper sign-up tamamlandı; proje dokuz modelin final-test ölçümünü içeriyor. Eğitim sonuçlarının artık var olması, bütün teslim koşullarının tamamlandığı anlamına gelmez.
 
-| Teslim | Tarih / şart | Şimdiki durum |
+| Teslim | Şart | Kanıt / kalan adım |
 |---|---|---|
-| Public GitHub deposu | Kaynak + tekrar üretim talimatları; raporda bağlantısı olmalı | [Yayımlandı: emirbakac/cmp4509-madry-mnist](https://github.com/emirbakac/cmp4509-madry-mnist) |
-| Bağımsız notebook | Temiz Colab/Kaggle oturumunda yukarıdan aşağı çalışmalı | Varsayılan smoke; gerçek GPU sonuçları kullanıcı tarafından çalıştırılacak |
-| Sunum | 30 Kasım **veya** 7 Aralık 2026; QA dahil 10 dakika | Grubun kesin tarihini ders duyurusundan netleştir |
-| Rapor PDF | **13 Aralık 2026, 23:59**; Teams üzerinden | Şablon ve bilimsel deney sonuçları bekleniyor |
-| Ders şablonu | Teams: `CMP4509_report_template.zip` | Bu çalışma alanında henüz bulunmuyor |
+| Public GitHub | Kaynak, notebook, yeniden üretim adımları ve raporda bağlantı | [Public depo](https://github.com/emirbakac/cmp4509-madry-mnist) mevcut; audit branch/PR durumu FINAL_AUDIT'te |
+| Bağımsız eğitim notebook'u | Kaynak/config dosyalarını içermeli; smoke ve final100×5 akışı | `notebooks/01_mnist_reproduction.ipynb`; güncel çalıştırma kanıtı VALIDATION/FINAL_AUDIT'te |
+| Sonuç analizi | Özgün dokuz kayıt korunmalı; ortalama ± örnek std | `results/FINAL_TEST_ALL_MODELS.csv`, provenance JSON ve yeniden hesaplanan çıktılar |
+| Rapor PDF | **13 Aralık 2026, 23:59**, Teams; gerçek ders LaTeX şablonu | `report/` içinde teslim edilen kaynaklar mevcut; derleme/inceleme sonucu FINAL_AUDIT'te |
+| Resmî şablon kökeni | Teams'teki `CMP4509_report_template.zip` ile doğrulama | Özgün şablon arşivi bulunmadığı sürece **teslim engeli**; mevcut kaynakların benzer görünmesi kanıt değil |
+| Sunum | 30 Kasım veya 7 Aralık 2026; QA dahil 10 dakika | Ayrı aşama; bu final audit'te slayt üretilmiyor |
 
-## Önerilen sıra
+## Teslimden önce
 
-1. **İlk çalışma oturumu:** smoke test; kod ve saldırı mekanizmasını birlikte anlama; çalışan notebook ekran görüntüsü.
-2. **Sonraki GPU oturumu:** pilot normal eğitim ve pilot PGD eğitimi; süre ölçümü; doğrulama eğrileri; hata notları.
-3. **Ana deney öncesi:** ayarları ve seed listesini dondur; grup üyelerine koşuları dağıt; kalıcı kayıt yerini doğrula.
-4. **Ana deney:** her iki model için üç seed; bütün checkpoint, config, geçmiş ve ortam dosyalarını sakla.
-5. **Güçlü test:** aynı PGD 100 adım × 20 restart protokolü; gerçek CSV ve şekiller; tabloyu bağımsız olarak kontrol et.
-6. **Sunumdan önce:** 8–10 slayt; yaklaşık 7–8 dakika anlatım + 2–3 dakika sorular için prova. Her üye tüm akışı açıklasın.
-7. **Rapor:** gerçek ders LaTeX şablonunu kullan; public depo bağlantısını ekle; PDF'yi görsel olarak kontrol et; Teams teslimini doğrula.
+1. Özgün ders şablonunu temin et ve rapor biçimiyle karşılaştır. Alternatif bir tasarımı sessizce ders şablonu diye kullanma.
+2. Son raporun, kontrol edilen `report/main.tex` ve kaynakçadan üretildiğini doğrula. Kılavuz kutuları kapalı, denklemler/citations çözülmüş, grafikler okunaklı olmalı.
+3. Final tabloların **10.000 test görüntüsü, PGD100×5**; ek güçlü kontrollerin **512 validation görüntüsü, PGD100×20/AutoAttack** olduğunu ayrı belirt.
+4. PGD40 seed1/2 başarısızlıklarını ve curriculum'un sonradan geliştirilen müdahale olduğunu koru. Tarihî checkpoint transferi ile entegre sıfırdan çalıştırmayı eşdeğer dosyalar gibi sunma.
+5. Grup üyeleri Contributions ve Use of AI Tools metinlerini doğrulasın. Atanan sorumluluklar, gerçekten tamamlandığı doğrulanan işler gibi yazılmamalı.
+6. GitHub'da gerekli kaynak/config/notebook/sonuç/rapor dosyalarının bulunduğunu kontrol et; audit değişiklikleri gözden geçirilmeden otomatik merge yapılmaz.
+7. PDF'yi Teams'e yükle ve teslim onayını sakla. Bu belge otomatik hatırlatıcı veya teslim işlemi değildir.
 
-## Public GitHub deposu
+## Saklanması yararlı kanıtlar
 
-Depo görünürlüğü gerçekten **public** olmalı; bağlantıyı oturum açılmamış bir pencerede açarak doğrula. Şunlar depoda yer alsın:
+- Cihaz, ortam ve config ekran görüntüsü.
+- Smoke notebook'un gerçek tamamlanma çıktısı.
+- Seed başına özgün CSV, saldırı bütçesi, seçilen epoch, checkpoint hash'i.
+- Varsa tam eğitim geçmişleri ve örnek tahminler; yoksa öğrenme eğrisi üretme.
+- Ortalama ± sample SD figürleri ve doğrulanmış veri kaynağı.
+- Validation saldırılarının ham logları, örnek indeksleri, AutoAttack sürümü ve Square uyarısı.
+- Public repo, son PDF ve Teams teslim onayı.
 
-- README ve çalıştırma sırası.
-- Bütün kaynak kodu, requirements ve isimlendirilmiş config dosyaları.
-- Kaynaklarını içeren notebook; tek bir Colab oturumuna veya özel Drive yoluna bağımlı olmamalı.
-- Gerçek sonuç tablosu/şekilleri, kullanılan seed'ler ve saldırı bütçesi.
-- Makale ve resmî yazar uygulamasına atıf; birebir tekrar olmayan noktaların açıklaması.
-
-MNIST verisi, büyük checkpoint'ler, sanal ortamlar ve erişim anahtarları repoya eklenmesin. Checkpoint'ler için paylaşılabilir ayrı bir çıktı bağlantısı kullanılabilir. Public depo açıldığında README'deki yayın bağlantısını ve rapordaki URL'yi güncelle; bir repo URL'sini var olmadan yazma.
-
-## Rapor iskeleti: şablona aktarılacak içerik
-
-Bu bir içerik planıdır; dersin biçim şablonu yerine geçmez.
-
-1. Problem ve motivasyon: temiz doğruluk neden tek başına yeterli değil?
-2. Madry çalışması: min–max hedefi, L∞ tehdit modeli, PGD ile iç optimizasyon.
-3. Yöntem: veri bölümü, iki convolution ağı, baseline/PGD eğitimi, optimizer, bütçe, seed ve checkpoint seçimi.
-4. Değerlendirme: temiz/FGSM/PGD, rastgele başlangıçlar, restart başarısızlığını birleştirme, testin dondurulması.
-5. Gerçek sonuçlar: seed başına tablo, ortalama ± std, süre, grafikler ve örnekler.
-6. Tartışma: temiz doğruluk–dayanıklılık ilişkisi, güçlü testin etkisi, makaleden farklar ve sınırlılıklar.
-7. Sonuç, katkı dağılımı, kaynakça ve public depo bağlantısı.
-
-Sonuç gelmeden sayı, “başarılı tekrar” iddiası veya nihai sonuç paragrafı doldurma. Makaleden alınan sayı varsa açıkça **literatür sonucu** olarak etiketle ve kendi tablonla karıştırma.
-
-## Sunumda herkesin açıklayabilmesi gerekenler
-
-- İçteki max ve dıştaki min ne yapıyor?
-- ε=0.3 hangi piksel ölçeğinde? L∞ sınırı ne demek?
-- FGSM ile PGD arasındaki fark ne?
-- Rastgele başlangıç/restart neden gerekli?
-- Eğitimden daha güçlü test neden kullanılıyor?
-- Hangi ayarlar makaleden farklı ve neden?
-- Veri sızıntısı olmadan checkpoint nasıl seçildi?
-- Sonuç üç seed'de ne kadar değişti? Hesaplama maliyeti neydi?
-
-## Ekran görüntüsü ve çıktı listesi
-
-- [ ] Ortam/GPU ve config hücresi.
-- [ ] Smoke testin tamamlanması.
-- [ ] Baseline ve PGD eğitim eğrileri.
-- [ ] Aynı görüntünün temiz/FGSM/PGD örneği ve ε kontrolü.
-- [ ] Seed başına gerçek sonuç CSV tablosu.
-- [ ] Ortalama ± std karşılaştırma grafiği.
-- [ ] Public GitHub ana sayfası ve notebook.
-- [ ] Doğru şablonla üretilmiş son PDF.
-- [ ] Teams teslim onayı.
-
-Ekran görüntüsü sayısal dosyaların yerine geçmez. CSV, config ve kaynak sürümü temel kayıttır; görüntüler anlatımı destekler. Bu belge bir kontrol listesidir; otomatik hatırlatıcı kurulmuş değildir.
+CSV/config/log dosyaları temel kayıttır. Ekran görüntüleri destekleyicidir. Büyük checkpoint'ler ve MNIST verisini Git'e koymak yerine erişilebilir ayrı bir arşivde sakla; erişim anahtarlarını veya kişisel dosyaları yayımlama.

@@ -1,0 +1,18 @@
+{
+  "provenance": "Values transcribed from the supplied manuscript and the author's audit request, 25 October 2026. No raw AutoAttack logs, per-example predictions, subset index manifest, or full-model checkpoint files were available to the auditor.",
+  "status": "author_reported_rounded_percentages",
+  "split": "validation",
+  "reported_subset_size": 512,
+  "same_subset_across_methods": "reported; index identity not independently verified",
+  "epsilon": 0.3,
+  "pgd_alpha": 0.01,
+  "seeds": [0, 1, 2],
+  "attacks": [
+    {"name": "PGD100 x 20", "accuracy_percent": [84.38, 86.52, 83.98]},
+    {"name": "Full standard AutoAttack", "accuracy_percent": [82.62, 85.16, 82.23]}
+  ],
+  "autoattack_components_reported": ["APGD-CE", "targeted APGD", "targeted FAB", "Square Attack"],
+  "additional_square_check": {"seed": 0, "before_percent": 82.62, "after_percent": 82.42, "exact_query_and_restart_budget": null, "status": "author_reported; raw log unavailable"},
+  "aggregation": "Mean and sample SD (ddof=1) are recomputed from the supplied rounded percentages. They are not inferred exact counts out of 512.",
+  "warning": "Author reports a Square Attack warning. These measurements do not establish absence of gradient masking or certified robustness. Do not pool with the 10000-image final test."
+}

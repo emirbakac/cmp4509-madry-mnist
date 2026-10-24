@@ -1,0 +1,18 @@
+{
+  "audit_date": "2026-10-25",
+  "compiler": "Tectonic 0.17.0",
+  "pages": 10,
+  "template_provenance": "unverified; original instructor archive unavailable",
+  "files": {
+    "main.tex": "c7668605a6c778ed6413d368f3d7918b4b125be535e095c2359fad7c7d206281",
+    "references.bib": "a96f261ac9bf0f468522a8df0d769a4e5e1cc404bc5914702ccbc60985bd889c",
+    "report.pdf": "0d13e2846fff654e14c2b794e1b76638d3067eb1e5dbe0664f8b457d60fc4947",
+    "figures/.DS_Store": "d65165279105ca6773180500688df4bdc69a2c7b771752f0a46ef120b7fd8ec3",
+    "figures/final_accuracy_comparison.pdf": "ae5b9f8f0fbd63fcc7f5b78c145bae6501966c7b28dc5966c04b0869854e16f5",
+    "figures/final_accuracy_comparison.png": "8bc572f79fb042ebcc7fd37673404cef632f47f601ac4465e90c95d68a4269be",
+    "figures/seed_robustness.pdf": "21f7cef6b99e165451feb52b02e3669ac3d6e314a6917802028529aa63e15c44",
+    "figures/seed_robustness.png": "660c530907c856cfc21d1f9b5872ceb410afa1fe66ac41da53c36c6775bfe316",
+    "figures/validation_attack_comparison.pdf": "feda9aa6a14fa0e5ff3cb55318e71dc326ff7fb95f9789c988f86ad5b26c37ba",
+    "figures/validation_attack_comparison.png": "457bed0fcb026c81f800d57dfa9bf2341f63afe18ecfe61688405088a7965701"
+  }
+}

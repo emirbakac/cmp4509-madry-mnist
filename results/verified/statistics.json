@@ -1,0 +1,86 @@
+{
+  "final_csv_sha256": "654e9696f9a11c86e514b44ea9bd9d38fcfb81dabb281d7482b25f8e7de5d345",
+  "n_records": 9,
+  "n_seeds_each": 3,
+  "final_test": [
+    {
+      "method": "Baseline",
+      "metric": "clean_accuracy",
+      "n_seeds": 3,
+      "mean_percent": 99.03,
+      "sample_sd_percent": 0.0529150262212974
+    },
+    {
+      "method": "Baseline",
+      "metric": "fgsm_accuracy",
+      "n_seeds": 3,
+      "mean_percent": 11.493333333333334,
+      "sample_sd_percent": 1.2450033467157158
+    },
+    {
+      "method": "Baseline",
+      "metric": "pgd_accuracy",
+      "n_seeds": 3,
+      "mean_percent": 0.0,
+      "sample_sd_percent": 0.0
+    },
+    {
+      "method": "PGD40",
+      "metric": "clean_accuracy",
+      "n_seeds": 3,
+      "mean_percent": 38.12,
+      "sample_sd_percent": 46.36700011861884
+    },
+    {
+      "method": "PGD40",
+      "metric": "fgsm_accuracy",
+      "n_seeds": 3,
+      "mean_percent": 34.413333333333334,
+      "sample_sd_percent": 39.94686512523021
+    },
+    {
+      "method": "PGD40",
+      "metric": "pgd_accuracy",
+      "n_seeds": 3,
+      "mean_percent": 31.283333333333335,
+      "sample_sd_percent": 34.525546097539625
+    },
+    {
+      "method": "Curriculum",
+      "metric": "clean_accuracy",
+      "n_seeds": 3,
+      "mean_percent": 97.84666666666666,
+      "sample_sd_percent": 0.3003886371574865
+    },
+    {
+      "method": "Curriculum",
+      "metric": "fgsm_accuracy",
+      "n_seeds": 3,
+      "mean_percent": 93.91,
+      "sample_sd_percent": 0.6199193495931545
+    },
+    {
+      "method": "Curriculum",
+      "metric": "pgd_accuracy",
+      "n_seeds": 3,
+      "mean_percent": 88.13,
+      "sample_sd_percent": 0.8746999485537886
+    }
+  ],
+  "reported_validation": [
+    {
+      "attack": "PGD100 x 20",
+      "mean_percent": 84.96,
+      "sample_sd_percent": 1.3657232516143205,
+      "source_precision": "author-reported rounded percentages"
+    },
+    {
+      "attack": "Full standard AutoAttack",
+      "mean_percent": 83.33666666666667,
+      "sample_sd_percent": 1.5910478727346073,
+      "source_precision": "author-reported rounded percentages"
+    }
+  ],
+  "checkpoint_hashes": "syntax verified only; checkpoint files unavailable",
+  "validation_provenance": "author_reported_rounded_percentages"
+}

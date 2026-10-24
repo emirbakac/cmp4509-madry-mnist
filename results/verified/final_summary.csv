@@ -1,0 +1,10 @@
+method,metric,n_seeds,mean_percent,sample_sd_percent
+Baseline,clean_accuracy,3,99.03,0.0529150262212974
+Baseline,fgsm_accuracy,3,11.493333333333334,1.2450033467157158
+Baseline,pgd_accuracy,3,0.0,0.0
+PGD40,clean_accuracy,3,38.12,46.36700011861884
+PGD40,fgsm_accuracy,3,34.413333333333334,39.94686512523021
+PGD40,pgd_accuracy,3,31.283333333333335,34.525546097539625
+Curriculum,clean_accuracy,3,97.84666666666666,0.3003886371574865
+Curriculum,fgsm_accuracy,3,93.91,0.6199193495931545
+Curriculum,pgd_accuracy,3,88.13,0.8746999485537886
