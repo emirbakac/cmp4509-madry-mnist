@@ -63,7 +63,7 @@ def verify(root=ROOT, make_figures=True):
     out = root / 'results/verified'
     out.mkdir(parents=True, exist_ok=True)
     with (out / 'final_summary.csv').open('w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=list(summary[0]))
+        writer = csv.DictWriter(f, fieldnames=list(summary[0]), lineterminator='\n')
         writer.writeheader()
         writer.writerows(summary)
     result = {'final_csv_sha256': source_hash, 'n_records': 9, 'n_seeds_each': 3,

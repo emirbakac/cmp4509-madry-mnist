@@ -76,7 +76,7 @@ Regression coverage includes attack direction/projection/clean correctness, mode
 
 Smoke used 256 training, 64 validation and 64 test images, one epoch, a reduced smoke model and PGD5 × 2 evaluation. Its accuracies are **not scientific results** and are not added to the final comparison. Full main/probe/curriculum GPU training, full-test PGD100 × 5 replay and AutoAttack were not run. Full config branches were exercised by lightweight contract tests, not represented as fully execution-verified CUDA experiments.
 
-The first manuscript build exposed missing figure-format assets, two overfull paragraphs and bibliography warnings; these were repaired before the final build. A notebook test initially needed macOS symlink-path normalization; the corrected test passed. No failing final quality gate remains. Successful compilation does not resolve missing official-template provenance.
+The first manuscript build exposed missing figure-format assets, two overfull paragraphs and bibliography warnings; these were repaired before the final build. A notebook test initially needed macOS symlink-path normalization; the corrected test passed. The committed-range whitespace check caught CRLF line endings in the newly derived summary CSV; the generator now uses LF, and notebook 02 was regenerated and executed again successfully. The original measurement CSV was not altered. No failing final quality gate remains. Successful compilation does not resolve missing official-template provenance.
 
 ## Remaining human actions and limits
 
