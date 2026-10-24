@@ -1,143 +1,224 @@
-# MNIST üzerinde PGD ile dayanıklı öğrenme
+# CMP4509 — MNIST Üzerinde PGD ile Adversarially Robust Learning
 
-[Public GitHub deposu](https://github.com/emirbakac/cmp4509-madry-mnist) · [Notebook’u Colab’da aç](https://colab.research.google.com/github/emirbakac/cmp4509-madry-mnist/blob/main/notebooks/01_mnist_reproduction.ipynb)
+[Public GitHub deposu](https://github.com/emirbakac/cmp4509-madry-mnist) · [Colab notebook](https://colab.research.google.com/github/emirbakac/cmp4509-madry-mnist/blob/main/notebooks/01_mnist_reproduction.ipynb) · [Final test sonuçları (CSV)](results/FINAL_TEST_ALL_MODELS.csv) · [Teori notları](docs/THEORY.md)
 
-CMP4509 Deep Learning grup projesi: Madry ve arkadaşlarının **“Towards Deep Learning Models Resistant to Adversarial Attacks”** çalışmasının ana fikrini, ücretsiz Colab/Kaggle GPU'larında çalışabilecek küçük bir PyTorch deneyiyle sınamak.
+**CMP4509 Introduction to Deep Learning — Fall 2026, Term Project**  
+**Reproduced paper:** Madry et al., *[Towards Deep Learning Models Resistant to Adversarial Attacks](https://arxiv.org/abs/1706.06083)* (ICLR 2018).
 
-**Araştırma sorumuz:** Aynı ağı normal eğitimle ve PGD adversarial training ile eğittiğimizde, temiz görüntü doğruluğu ve güçlü PGD saldırısı altındaki doğruluk nasıl değişiyor?
+Bu proje, Madry ve arkadaşlarının **PGD adversarial training'in standart eğitime kıyasla adversarial saldırılara karşı dayanıklılığı artırabileceği** yönündeki temel iddiasını MNIST üzerinde, ücretsiz Google Colab GPU bütçesine uygun daha küçük bir PyTorch CNN ile inceler. Üç ayrı eğitim stratejisini, **3 random seed** ve aynı final test protokolü altında karşılaştırır:
 
-Bu depo bir başlangıç uygulamasıdır. Eğitim yapılmadan sonuç uydurulmaz. Küçük ağ, eğitim bütçesi ve doğrulama bölümü nedeniyle **makaledeki sayıları birebir tekrar ettiğimizi iddia etmiyoruz**. Amaç, ana sonucu kontrollü ve tekrar edilebilir biçimde incelemek.
+1. **Baseline:** Yalnız temiz MNIST görüntüleriyle eğitim.
+2. **PGD40 from scratch:** İlk epoch'tan itibaren her eğitim batch'ine 40 adımlı PGD uygulanması.
+3. **PGD curriculum:** İlk **3 epoch PGD10**, sonraki **7 epoch PGD40** ile adversarial training.
 
-## İlk oturum: küçük bir deneyi uçtan uca bitirelim
+**Sonuç:** Standart eğitimde güçlü PGD saldırısı altında doğruluk **%0.00 ± 0.00** iken curriculum eğitiminde **%88.13 ± 0.87** oldu (10.000 MNIST test görüntüsü, PGD100 × 5 restart, 3 seed, örnek standart sapma). PGD40 from scratch koşularında üç seed'in ikisinde *single-class prediction collapse* gözlendi. Bu bulgular **bizim ölçeklendirilmiş deney koşullarımız** içindir; orijinal makaledeki mimari, bütçe veya sayılarla birebir eşdeğerlik iddiası değildir.
 
-1. `notebooks/01_mnist_reproduction.ipynb` dosyasını Colab'a yükle veya Kaggle Notebook olarak içe aktar. Notebook bütün kaynak dosyalarını görünür hücrelerde içerir; başka bir depoyu klonlamaya gerek yoktur.
-2. Colab'da **Runtime → Change runtime type → GPU**, Kaggle'da **Settings → Accelerator → GPU** seç. Kaggle'da MNIST indirmek için Internet açık olmalı. GPU kotası ve erişim değişebilir.
-3. Varsayılan `CONFIG_NAME = "smoke"` ayarını koru ve hücreleri yukarıdan aşağı çalıştır. Bu küçük koşu önce normal eğitimi, sonra PGD eğitimini ve değerlendirmeyi sınar. CPU'da da çalışabilir.
-4. İlk sonuç tablosunu ve temiz/saldırılmış örnekleri kontrol et. **Ayarlar, kullanılan cihaz ve sonuç tablosunun ekran görüntüsünü al.** Bunlar ileride sunumun deney sürecini anlatacak.
-5. Notebook'un sonundaki arşivi indir. Colab oturumu kapanınca geçici dosyalar silinebilir; uzun koşudan önce Drive kaydını aç. Kaggle'da **Save Version** ile çıktılarını sakla.
+## 1. Final deney sonuçları
 
-Smoke test bilimsel sonuç değildir: 256 eğitim örneği ve tek epoch yalnızca veri, gradyan, saldırı, kayıt ve raporlama zincirini kontrol eder.
+**Test protokolü (model ve saldırı ayarları dondurulduktan sonra):** MNIST'in ayrı **10.000** görüntülük test seti; `L∞`, `ε = 0.3`, saldırı adım boyu `α = 0.01`, **PGD100 × 5 random restarts**. Eğitim sırasında test seti model veya hiperparametre seçmek için kullanılmadı. Her koşuda validation ile seçilen `best.pt` değerlendirildi. Aşağıdaki `±` işareti, 3 bağımsız training seed'i (0, 1, 2) üzerinden **sample standard deviation (ddof=1)** anlamına gelir; güven aralığı değildir.
 
-Min–max, FGSM türetimi, PGD güncellemesi ve iki farklı gradyanı adım adım anlamak için [kısa teori rehberini](docs/THEORY.md) oku. Rapor için [BibTeX kaynakları](docs/references.bib) da hazır.
+| Eğitim yöntemi | Clean test accuracy | FGSM test accuracy | PGD100 × 5 test accuracy |
+|---|---:|---:|---:|
+| Baseline | **99.03% ± 0.05** | 11.49% ± 1.25 | **0.00% ± 0.00** |
+| PGD40 from scratch | 38.12% ± 46.37 | 34.41% ± 39.95 | 31.28% ± 34.53 |
+| **PGD10 → PGD40 curriculum** | **97.85% ± 0.30** | **93.91% ± 0.62** | **88.13% ± 0.87** |
 
-## Fikir: saldırganın bulduğu zor örneklerle öğrenmek
+### Seed bazında gerçek final test ölçümleri
 
-Makalenin hedefi şudur:
+Yüzde biçiminde gösterilmiştir. Ham CSV, oranları `[0,1]` aralığında ve ilgili checkpoint SHA-256 değerleriyle saklar.
+
+| Yöntem | Seed | Seçilen epoch | Clean | FGSM | PGD100 × 5 |
+|---|---:|---:|---:|---:|---:|
+| Baseline | 0 | 10 | 99.07% | 12.38% | 0.00% |
+| Baseline | 1 | 8 | 99.05% | 12.03% | 0.00% |
+| Baseline | 2 | 10 | 98.97% | 10.07% | 0.00% |
+| PGD40 | 0 | 10 | 91.66% | 80.54% | 71.15% |
+| PGD40 | 1 | 1 | 11.35% | 11.35% | 11.35% |
+| PGD40 | 2 | 1 | 11.35% | 11.35% | 11.35% |
+| Curriculum | 0 | 10 | 97.50% | 93.22% | 87.62% |
+| Curriculum | 1 | 10 | 98.01% | 94.42% | 89.14% |
+| Curriculum | 2 | 10 | 98.03% | 94.09% | 87.63% |
+
+**Kaynak veri:** [`results/FINAL_TEST_ALL_MODELS.csv`](results/FINAL_TEST_ALL_MODELS.csv). `checkpoint_sha256` sütunu her ölçümün hangi model dosyasından geldiğini doğrulamak içindir. CSV'yi Excel/Numbers ile açarken yerel ondalık ayracı nedeniyle `0.975` gibi değerlerin `975` görünmesine dikkat edin; ham CSV veya `pandas.read_csv` kullanın.
+
+**Sonuçların yorumu:** Baseline temiz doğrulukta en yüksek değere ulaşsa da bu saldırı altında kırılgandır. PGD40 eğitimi seed 0'da anlamlı dayanıklılık öğrendi; seed 1 ve 2 ise on epoch boyunca tek sınıf tahminine yakın takıldı. Bu iki seed'in PGD accuracy'sinin %11.35 olması *gerçek dayanıklılık* başarısı anlamına gelmez; clean accuracy de aynı düzeydedir. Hiçbir başarısız seed ortalamadan çıkarılmadı. Curriculum'un üç seed'de de öğrenmesi bu ayarlar altında optimizasyon kararlılığını destekler; bunun bütün ağlar ve ayarlar için genel bir üstünlük kanıtı olduğu iddia edilmez.
+
+### Ek validation saldırı kontrolleri (final test değil)
+
+Curriculum checkpoint'leri seçildikten sonra **aynı 512 validation görüntüsünde**, `ε=0.3` ile ayrıca şu kontroller yapıldı:
+
+| Değerlendirme | Seed 0 | Seed 1 | Seed 2 | Ortalama ± std |
+|---|---:|---:|---:|---:|
+| PGD100 × 20 restart | 84.38% | 86.52% | 83.98% | 84.96% ± 1.37 |
+| Full **standard AutoAttack** (APGD-CE, APGD-T, FAB-T, Square) | 82.62% | 85.16% | 82.23% | 83.34% ± 1.59 |
+
+Seed 0 için artırılmış Square Attack bütçesiyle full AutoAttack sonucu **%82.42** oldu (standart bütçede %82.62). AutoAttack, üç seed'de de Square Attack'in ek örnekler bulduğuna ilişkin uyarı verdi; bu yüzden gradient masking veya daha güçlü/adaptive saldırı olasılığının kesin olarak dışlandığı söylenmez. Bu değerler **512-image validation** kontrolüdür; 10.000 örneklik final PGD test tablosuyla karıştırılmamalıdır. AutoAttack ayrıca kurulan bir dış pakettir; bu depodaki temel test script'inin parçası değildir.
+
+## 2. Yöntem ve tehdit modeli
+
+Temel robust optimizasyon hedefi:
 
 \[
-\min_{\theta}\;\mathbb{E}_{(x,y)}\left[\max_{\|\delta\|_{\infty}\leq\epsilon}\mathcal{L}(f_\theta(x+\delta),y)\right].
+\min_{\theta}\;\mathbb{E}_{(x,y)}\left[
+\max_{\delta\in S(x)}\mathcal{L}(f_{\theta}(x+\delta),y)
+\right],\quad
+S(x)=\{\delta:\|\delta\|_{\infty}\leq 0.3,\ x+\delta\in[0,1]^d\}.
 \]
 
-İçteki **max**, mevcut modeli zorlayacak izinli bir piksel değişimini arar. Dıştaki **min**, model ağırlıklarını bu zor örneklerdeki kaybı azaltacak yönde günceller. PGD, içteki aramaya pratik bir yaklaşım sağlar; gerçek en kötü saldırıyı bulduğunu garanti etmez.
+- **İçteki maksimum:** Ağırlıklar sabitken izinli bir adversarial görüntüyle cross-entropy kaybını artırmaya çalışır.
+- **Dıştaki minimum:** Saldırılı görüntüler üzerinde model ağırlıklarını Adam ile günceller.
+- **FGSM:** İşaret gradyanıyla tek adımlı saldırıdır.
+- **PGD:** Rastgele başlangıçtan birden çok işaret-gradyan adımı atar; her adımda `L∞` topuna ve `[0,1]` piksel aralığına projeksiyon uygular.
+- **İki ayrı türev:** Saldırı üretiminde `∇x loss`; eğitimde sabit kabul edilen saldırılı girdi üzerinden `∇θ loss` alınır. Saldırı grafiği `detach()` ile ayrılır.
+- **Robust accuracy:** Temizken yanlış sınıflanan örnekler dayanıklı sayılmaz. Evaluator; temiz örnek, PGD ara iterasyonları ve bütün restart'lardaki başarılı saldırıları örnek bazında korur. Restart doğrulukları ortalanmaz.
 
-- MNIST piksel aralığı `[0, 1]`; tehdit sınırı **L∞, ε = 0.3**. Görüntülere ayrıca ortalama/standart sapma normalizasyonu uygulanmaz, böylece epsilon doğrudan bu piksel ölçeğindedir.
-- **FGSM:** kaybı büyüten yönde tek adım.
-- **PGD:** küçük adımlar, her adımda orijinal görüntünün izinli ε komşuluğuna ve `[0, 1]` aralığına geri yansıtma.
-- **Rastgele başlangıç:** her restart saldırıyı izinli bölgenin başka bir noktasından başlatır.
-- **Güçlü değerlendirme:** eğitimde kullanılandan daha fazla PGD adımı ve birden fazla restart. Bir örneği herhangi bir restart/adım bozabiliyorsa değerlendirmede bu başarısızlık korunur; restart doğruluklarının ortalaması alınmaz.
+Modelin bir saldırı tarafından kırılamaması **matematiksel sertifikalı dayanıklılık** değildir. Denklem türetimi ve kodun mantığı için [`docs/THEORY.md`](docs/THEORY.md) bölümüne bakın.
 
-Ölçtüğümüz dayanıklılık, seçilen saldırı ve bütçe altındaki ampirik doğruluktur; matematiksel bir dayanıklılık sertifikası değildir.
+## 3. Veri, ağ ve eğitim ayarları
 
-## Resmî uygulamadan aldıklarımız ve değiştirdiklerimiz
+| Bileşen | Bu projede kullanılan ayar |
+|---|---|
+| Veri | MNIST; **55.000 train / 5.000 validation / 10.000 test** |
+| Bölme | `split_seed = 2026`, tüm training seed'lerinde aynı validation split |
+| Ön işleme | `ToTensor()`, ham `[0,1]` pikseller; ek normalize yok |
+| CNN | `Conv(1→16, 5×5) → ReLU → MaxPool(2) → Conv(16→32, 5×5) → ReLU → MaxPool(2) → Flatten → Linear(1568→128) → ReLU → Linear(128→10)` |
+| Parametre | **215.370** öğrenilebilir parametre |
+| Optimizer | Adam, learning rate `0.001` (diğer optimizer hiperparametreleri PyTorch varsayılanı) |
+| Batch / epoch | `128`, **10 epoch** (`main` ve curriculum) |
+| Seeds | `0`, `1`, `2` (training runs); validation attack RNG için `eval_seed=12345` |
+| Training PGD | `ε=0.3`, `α=0.01`, 1 random start; PGD40 veya curriculum için PGD10→PGD40 |
+| Validation PGD | 40 adım, 1 restart; her epoch'ta aynı validation protokolü |
+| Model seçimi | Baseline: en iyi **clean validation**; adversarial modeller: en iyi **PGD validation** accuracy |
+| Nihai test | Clean, FGSM ve `PGD100 × 5`; 10.000 örnek, checkpoint `best.pt` |
+| Compute | Ücretsiz **Google Colab T4** GPU; oturumlar arasında Google Drive checkpoint'leriyle devam |
 
-Kaynaklar: [makale](https://arxiv.org/abs/1706.06083), [yazarların MNIST Challenge uygulaması](https://github.com/MadryLab/mnist_challenge), [resmî ayarlar](https://github.com/MadryLab/mnist_challenge/blob/master/config.json), [resmî model](https://github.com/MadryLab/mnist_challenge/blob/master/model.py), [resmî PGD saldırısı](https://github.com/MadryLab/mnist_challenge/blob/master/pgd_attack.py).
+### Makaleden bilinçli sapmalar
 
-| Seçim | Yazarların MNIST uygulaması | Bu projenin `main` başlangıç ayarı |
-|---|---|---|
-| Piksel ölçeği / ε | `[0,1]` / `0.3` | Aynı |
-| Eğitim saldırısı | PGD, 40 adım, adım boyu `0.01`, rastgele başlangıç, cross-entropy | Aynı saldırı ailesi ve değerler |
-| Ağ | 5×5 convolution: 32 ve 64 kanal; max-pooling; 1024 birimli gizli katman | Aynı 2-convolution düzeni; 16 ve 32 kanal; 128 birimli gizli katman |
-| Optimizasyon | Adam, `1e-4`, batch 50, 100.000 güncelleme | Adam, `1e-3`, batch 128, 10 epoch |
-| Veri kullanımı | Resmî kodun eğitim akışı | 55.000 eğitim / sabit 5.000 doğrulama / 10.000 test |
-| Başlatma | Resmî TensorFlow ağırlık/bias başlatması | PyTorch varsayılan başlatması |
-| Değerlendirme | Makalede ve challenge'da farklı saldırı bütçeleri raporlanır | `main`: PGD 100 × 10 restart; dondurulmuş final: 100 × 20 restart |
+[MadryLab'ın MNIST uygulaması](https://github.com/MadryLab/mnist_challenge), 32/64 convolution kanal ve 1024 hidden-unit içeren daha büyük bir ağ; yaklaşık `1e-4` öğrenme oranı, batch 50 ve daha uzun eğitim bütçesi kullanır. Bizim **16/32 kanal, 128 hidden**, `1e-3`, batch 128 ve 10 epoch seçimlerimiz ücretsiz GPU üzerinde tamamlanabilir bir deney hedefler. PyTorch ağırlık başlangıcı da resmî TensorFlow uygulamasından farklıdır. Ayrıca **PGD10→PGD40 curriculum**, Madry makalesinin birebir eğitim protokolü değil, ilk PGD40 koşularında görülen collapse'ı incelemek için oluşturulmuş ek kontrollü deneydir. Bu sapmalar nihai sonuçların makalenin sayılarıyla doğrudan eşitlenmesini engeller.
 
-Resmî konfigürasyondaki PGD 40 ayarı tek başına yeterli bir final değerlendirme standardı sayılmaz. Makalenin güçlü saldırı değerlendirmesini örnek alarak eğitimden güçlü bir test kullanıyoruz. Daha büyük ağ/uzun eğitim sonradan deney olabilir; önce küçük koşuyu gerçekten tamamlayalım.
+### Curriculum'un deneysel geçmişi
 
-## Dosyalar
+Gerçekte önce `main_pgd10_probe` ile seed 0/1/2 için **3 epoch PGD10** eğitildi; model ağırlıkları, Adam optimizer durumu ve RNG kaydı korunarak ayrı `main_curriculum_pgd10_to_pgd40` koşularına aktarıldı. **Epoch 4–10 PGD40** ile tamamlandı. Başka bir eğitim protokolü uygulanmış gibi sunulmamalıdır. Güncel `experiment.py` aynı **3+7 eğitim adımı programını sıfırdan** uygulayabilmektedir; ayrı config ve klasör kullanır. Donanım/kütüphane sürümlerinden dolayı bit-düzeyinde aynı checkpoint garanti edilmez.
+
+## 4. Repository yapısı
 
 ```text
-configs/                  smoke, pilot ve main JSON ayarları
-mnist_robust/              veri, model, saldırılar, eğitim, değerlendirme ve özetleme
+configs/
+  smoke.json
+  pilot.json
+  main.json
+  main_pgd10_probe.json
+  main_curriculum_pgd10_to_pgd40.json
+mnist_robust/
+  data.py             # Sabit MNIST split / DataLoader
+  model.py            # SmallCNN
+  attacks.py          # FGSM ve L-infinity PGD
+  experiment.py       # Eğitim, resume, validation ve final evaluation
+  summarize.py        # Seed bazında ortalama ± sample SD ve görseller
+  utils.py            # RNG, device, ortam kaydı
 notebooks/
-  01_mnist_reproduction.ipynb  kendi kaynaklarını içeren, baştan sona notebook
-tests/                    saldırı sınırları ve ilgili doğrulamalar
+  01_mnist_reproduction.ipynb
+  # Kaynak kodun gömülü olduğu notebook; değiştirilince yeniden oluşturulur
+tools/
+  build_notebook.py   # Mevcut kaynaklardan notebook üretir
+tests/                 # Pipeline ve attack invariant testleri
 docs/
-  THEORY.md                min–max, FGSM/PGD ve metriklerin açıklaması
-  references.bib           birincil kaynaklar
-  EXPERIMENT_PLAN.md       deney sırası, ölçümler ve yorumlama
-  COURSE_DELIVERABLES.md   ders teslimleri ve ekran görüntüsü kontrol listesi
-runs/                     çalışınca oluşur: checkpoint, geçmiş, ayarlar, metrikler
-results/                  özet CSV, tablolar ve şekiller
+  THEORY.md
+  EXPERIMENT_PLAN.md
+  COURSE_DELIVERABLES.md
+  VALIDATION.md
+  references.bib
+results/
+  FINAL_TEST_ALL_MODELS.csv  # 9 model × final PGD100x5 (gerçek test)
+  smoke_check/               # Bilimsel sonuç olmayan yazılım kontrolü
+runs/                        # Çalıştırınca oluşur (Git'e eklenmez)
 ```
 
-## Yerel kullanım veya terminalden çalışma
+## 5. Nasıl çalıştırılır?
 
-Yeni bir Python ortamında, projenin kök klasöründen:
+### A. Colab / Kaggle notebook
+
+1. [Notebook'u Colab'da açın](https://colab.research.google.com/github/emirbakac/cmp4509-madry-mnist/blob/main/notebooks/01_mnist_reproduction.ipynb). **Runtime → Change runtime type → GPU** (Kaggle: Accelerator → GPU) seçin. GPU kullanım kotası değişkendir.
+2. İlk çalıştırmada `CONFIG_NAME="smoke"` ile veri→model→saldırı→checkpoint→CSV zincirini doğrulayın. **Smoke sonuçları bilimsel MNIST kanıtı değildir.**
+3. Asıl bilimsel koşular için sırasıyla `CONFIG_NAME="main"` (`MODES`: baseline/adversarial), `CONFIG_NAME="main_pgd10_probe"` ve `CONFIG_NAME="main_curriculum_pgd10_to_pgd40"` (`MODES`: adversarial) kullanılır. Her scientific config için **seed 0/1/2** gereklidir; bunlar aynı anda tek bir config'ten üretilmez. Güncel `tools/build_notebook.py` bu seçenekleri destekler.
+4. Ücretsiz GPU oturumlarında `USE_GOOGLE_DRIVE=True`, `RESUME=True` ve gerekirse `EPOCHS_PER_CALL=1` kullanın. Eğitimde `PROTOCOL_FROZEN=False` ve test kapalı tutulur. Model seçimi validation üzerinden yapılır.
+5. **Test protokolü dondurulduktan sonra:** `PROTOCOL_FROZEN=True` ve `FINAL_STRONG_EVAL=True` ile PGD100 × 5 uygularsınız. Raporlanan test sonuçları tek, sabit protokole aittir. Model veya saldırı ayarını test skoruna bakarak değiştirmeyin.
+
+**Önemli:** `notebooks/01_mnist_reproduction.ipynb`, `tools/build_notebook.py` tarafından kaynakları içine yazılarak üretilir. Kaynak/config/README değiştiyse **notebook'u da yeniden oluşturup commit edin**; aksi hâlde notebook eski kodu yazabilir. Sonuç CSV'sinin mevcut olması, notebook'un güncel olduğu anlamına gelmez.
+
+### B. Komut satırı ile yeniden üretim
+
+Python/PyTorch kurulumu (özellikle Colab'da sağlanan CUDA ile uyumlu `torch`/`torchvision` çiftini koruyun):
 
 ```bash
 python -m pip install -r requirements.txt
-python -m mnist_robust.experiment --config configs/smoke.json --mode baseline --seed 0 --output-dir runs --device auto
-python -m mnist_robust.experiment --config configs/smoke.json --mode adversarial --seed 0 --output-dir runs --device auto
-python -m mnist_robust.summarize --runs runs --output results --allow-single-seed
+python -m unittest discover -s tests -v
 ```
 
-Colab/Kaggle'ın önceden kurulu GPU destekli PyTorch paketini gereksiz yere değiştirme. Notebook yalnızca gerekli eksik paketleri kurar; uyumsuz bir kurulumda açık hata verir. Aynı sonuçları karşılaştırırken kaydedilmiş Python/PyTorch/CUDA ortam bilgisini de sakla.
-
-İnternet veya MNIST erişimi yoksa yalnızca kod yolunu kontrol etmek için `--synthetic` eklenebilir. Sentetik veri koşuları MNIST sonucu değildir ve gerçek veriyle birleştirilmez.
-
-## Deneyi büyütme sırası
-
-| Ayar | Eğitim / doğrulama / test örneği | Epoch | Eğitim PGD | Test PGD | Kullanım |
-|---|---:|---:|---:|---:|---|
-| `smoke` | 256 / 64 / 64 | 1 | 2 | 5 × 2 restart | Kodun çalıştığını doğrula |
-| `pilot` | 10.000 / 1.000 / 1.000 | 3 | 10 | 40 × 3 restart | GPU maliyetini ve öğrenmeyi gözle |
-| `main` | 55.000 / 5.000 / 10.000 | 10 | 40 | 100 × 10 restart | Üç seed ile asıl karşılaştırma |
-| Dondurulmuş final | `main` test kümesi | Yeni eğitim yok | — | 100 × 20 restart | Seçilen checkpoint'leri güçlü test et |
-
-Bunlar ücretsiz GPU için **ölçeklenebilir başlangıç bütçeleridir**; verilen sürede tamamlanacakları garanti değildir. `main` PGD eğitimi ve özellikle 20 restart test pahalıdır. Önce pilot süresini ölç, sonra süre/örnek sayısını kaydet. Bütçeyi değiştirirsen yeni ayarı ayrı isimle sakla ve hangi protokolün kullanıldığını rapora yaz.
-
-Model ve eğitim ayarlarını **doğrulama kümesiyle** seç. Test setini görmek için ayarları dondurmayı bekle. Pilotun test sonuçlarına bakarak ana modeli ayarlama; pilot koşularında `--train-only` kullan:
+**Önce eğitim (test setini model seçimine açmadan):**
 
 ```bash
-python -m mnist_robust.experiment --config configs/pilot.json --mode baseline --seed 0 --output-dir runs --device auto --train-only
-python -m mnist_robust.experiment --config configs/pilot.json --mode adversarial --seed 0 --output-dir runs --device auto --train-only
+# Standard baseline, seed 0
+python -m mnist_robust.experiment --config configs/main.json --mode baseline --seed 0 --output-dir runs --device auto --train-only
+
+# PGD40 from scratch, seed 0
+python -m mnist_robust.experiment --config configs/main.json --mode adversarial --seed 0 --output-dir runs --device auto --train-only
+
+# PGD10 probe, seed 0 (3 epochs)
+python -m mnist_robust.experiment --config configs/main_pgd10_probe.json --mode adversarial --seed 0 --output-dir runs --device auto --train-only
+
+# Two-stage PGD10 (epochs 1-3) + PGD40 (epochs 4-10), seed 0
+python -m mnist_robust.experiment --config configs/main_curriculum_pgd10_to_pgd40.json --mode adversarial --seed 0 --output-dir runs --device auto --train-only
 ```
 
-Aynı düzeni `main` için **seed 0, 1, 2** ve iki eğitim türünde çalıştır. Notebook bunu döngüyle yapar. Normal eğitimde en iyi temiz doğrulama checkpoint'i, PGD eğitiminde en iyi saldırılı doğrulama checkpoint'i seçilir; karşılaştırmada bu seçim kuralını açıkça belirt.
+Bu dört örnekte `--seed 0` yerine **1 ve 2** de kullanın. İlk iki eğitim modu ve curriculum final karşılaştırmadadır; `main_pgd10_probe` yalnızca curriculum başlangıcını inceleyen ek deneydir. Modeli ayrı koşu klasörlerinde eğitin. Kesintide aynı ayarla `--resume` ekleyin; epoch başına checkpoint almak için `--epochs-per-call 1`, kalan bütün epoch'ları yürütmek için `--epochs-per-call 0` kullanabilirsiniz.
 
-Kesilen bir eğitim aynı komuta `--resume` eklenerek son tamamlanmış checkpoint'ten sürdürülebilir. Oturumu kısa parçalara bölmek için `--epochs-per-call 1` kullanabilirsin; bütün epoch'lar bitmeden otomatik test başlamaz. Veri, model ve eğitim ayarlarını değiştirdikten sonra eski checkpoint'e devam etme; ayrı koşu başlat.
-
-Ayarları dondurduktan sonra örneğin PGD eğitimli seed 0 modelini güçlü test et:
+**Dondurulmuş test örneği (curriculum seed 0):**
 
 ```bash
-python -m mnist_robust.experiment --config configs/main.json --mode adversarial --seed 0 --output-dir runs --device auto --eval-only --checkpoint runs/main/adversarial/seed_0/best.pt --eval-steps 100 --eval-restarts 20
+python -m mnist_robust.experiment \
+  --config configs/main_curriculum_pgd10_to_pgd40.json \
+  --mode adversarial --seed 0 --output-dir runs \
+  --device auto --eval-only \
+  --checkpoint runs/main_curriculum_pgd10_to_pgd40/adversarial/seed_0/best.pt \
+  --eval-steps 100 --eval-restarts 5
 ```
 
-Aynı testi `baseline` ve diğer seed'ler için de uygula. Sonrasında:
+Baseline ve PGD40 checkpoint'leri için config/mode/seed/path'i uygun şekilde değiştirin. Test, önceden sabitlenmiş protokol ile **yalnızca nihai ölçüm** için kullanılmalıdır; yeniden test edip sonuçlara göre hiperparametre ayarı yapılmaz.
+
+**Özet ve grafikler:**
 
 ```bash
 python -m mnist_robust.summarize --runs runs/main --output results/main
+python -m mnist_robust.summarize --runs runs/main_curriculum_pgd10_to_pgd40 --output results/curriculum
+# Kaynakları / README / config'leri düzenlediyseniz güncel notebook üretin:
+python tools/build_notebook.py
 ```
 
-Özetleyici farklı veri/config/saldırı protokollerini ayrı tutar. `smoke`, `pilot`, `main` veya farklı restart sayıları aynı ortalamaya girmemelidir. Tek seed ile örnek çıktı görmek için `--allow-single-seed` vardır; tek seed için standart sapma güvenilir biçimde hesaplanamaz. Ana raporda **her model için üç seed**, seed başına değerler ve **ortalama ± örnek standart sapma** bulunmalı.
+Özetleyici aynı saldırı/config/protokol sonuçlarını birleştirir; farklı PGD restart bütçelerini veya smoke koşularını aynı istatistiğe katmaz. Kaynak kod, config ve saldırı protokolünün bütünlüğü kontrol edilmelidir. CSV değerlerini yüzdeye çevirmek için 100 ile çarpın.
 
-## Neler kaydediliyor?
+## 6. Kaydedilen çıktılar ve tekrarlanabilirlik
 
-Her koşu `runs/{config}/{mode}/seed_{seed}/` altında ayarları, ortam bilgisini, `last.pt`, `best.pt`, eğitim geçmişini ve test yapıldıysa metrikleri/örnek görselini saklar. Sentetik smoke klasöründe `smoke_synthetic` adı kullanılır. Farklı test bütçeleri `evaluations/pgd{steps}_r{restarts}/` altında ayrı korunur; koşu kökündeki dosyalar son değerlendirmeyi gösterir. `last.pt` devam etmek, `best.pt` değerlendirme için kullanılır. Toplu özetleyici `per_seed.csv`, `summary.csv`, `summary.md`, `accuracy.png`, `training_curves.png` üretir.
+Her koşuda `runs/{config}/{mode}/seed_{seed}/` klasöründe eğitim geçmişi (`history.csv`), config/ortam bilgisi, `last.pt` (resume) ve validation ile seçilen `best.pt` tutulur. Değerlendirmeler `evaluations/pgd{steps}_r{restarts}/` altındadır; `evaluation.json`, `metrics.csv`, `per_example.csv` ve temiz/FGSM/PGD örnek görseli üretilir. Final rapor tablosunun küçük, paylaşılabilir sürümü **[`results/FINAL_TEST_ALL_MODELS.csv`](results/FINAL_TEST_ALL_MODELS.csv)** dosyasıdır. Büyük checkpoint'ler, MNIST ham verisi ve kişisel Drive klasörleri GitHub'a yüklenmez.
 
-Temiz, FGSM ve PGD doğruluklarını birlikte incele. Yalnız temiz doğruluk, saldırıya dayanıklılığı göstermez. PGD adım/restart sayısını artırınca dayanıklılık belirgin düşüyorsa zayıf test fazla iyimser sonuç vermiştir. Sadece başarılı görünen seed'i seçme; bütün önceden belirlenmiş seed'leri raporla.
+`main` checkpoint seçimi baseline'da **clean validation**, PGD40'ta **PGD40 validation** üzerinden yapılır. Curriculum için de **PGD40 validation** kullanılır. İki başarısız PGD40 seed'i dahil olmak üzere önceden belirlenen tüm seed'ler raporlanır. `seed` tek başına farklı PyTorch/CUDA ve GPU sürümlerinde bit-düzeyinde aynı sonucu garanti etmez; gerçek çalışma ortamı kayıt dosyalarında saklanır.
 
-**Şu an ölçülmüş bilimsel sonuç yok.** Çalıştırılan smoke testler yalnızca çalışma doğrulamasıdır. Kullanıcı GPU eğitimini yaptıktan sonra asıl tablolar, şekiller ve rapor bulguları üretilecek.
+Sonuçlar [yazarların MNIST Challenge kodu](https://github.com/MadryLab/mnist_challenge) ve asıl [makale](https://arxiv.org/abs/1706.06083) ile yöntem bakımından karşılaştırılır; model kapasitesi ve hesaplama bütçesi farklı olduğundan rakamlar doğrudan eşit koşullarda değildir. Eğitim başarısızlığı veya robust accuracy düşüşleri saklanmaz; **raporun Discussion bölümünde** açıklanır.
 
-## Ders teslimleri
+## 7. Ders teslimleri
 
-- **Public GitHub deposu:** kaynaklar, bağımsız notebook, README, deney ayarları ve yeniden üretim adımları. Büyük checkpoint/veri dosyalarını Git geçmişine koyma; paylaşılan çıktılar için ayrıca bağlantı kullan.
-- **Rapor:** Teams'teki `CMP4509_report_template.zip` kullanılarak hazırlanmış PDF; **13 Aralık 2026, 23:59 (Türkiye saati)**. Rapor içinde public depo bağlantısı bulunmalı.
-- **Sunum:** **30 Kasım veya 7 Aralık 2026**, soru-cevap dahil **10 dakika**, hedef **8–10 slayt**. Her grup üyesi bütün projeyi açıklayabilmeli.
+- **GitHub:** Public, kendi grubunuza ait depo; README, PyTorch kodu, yeniden üretilebilir notebook, config dosyaları ve gerçek sonuçlar. GitHub adresi raporda bulunmalıdır.
+- **Rapor:** Teams'teki **`CMP4509_report_template.zip`** içinde verilen LaTeX şablonuyla yazılacak ve **PDF** olarak **13 Aralık 2026, 23:59**'a kadar teslim edilecektir. `\showguidesfalse` teslim öncesi ayarlanmalı; **Contributions** ve **Use of AI Tools** bölümleri doldurulmalıdır.
+- **Sunum:** **30 Kasım veya 7 Aralık 2026**, soru-cevap dahil **10 dakika**, hedef yaklaşık **8–10 slayt**. Üç üyenin tamamı PGD/min–max türetimini ve deneyleri savunabilmelidir.
 
-Ders şablonu bu çalışma alanında henüz yok; şablon gelmeden ders formatında tamamlanmış rapor varmış gibi davranılmayacak. Ayrıntılar için [deney planı](docs/EXPERIMENT_PLAN.md) ve [teslim kontrol listesi](docs/COURSE_DELIVERABLES.md).
+Rapor, üniversitenin gerçek ders şablonu kullanılarak oluşturulmalıdır; README veya genel amaçlı başka bir LaTeX şablonu onun yerini almaz. Ders yönergesine göre public depo eksikliği, ders şablonu dışında hazırlanmış rapor veya PDF olmayan teslim projeden **0 puan** alınmasına yol açar.
 
-Yerel kontrollerin kapsamı ve henüz çalıştırılmayan deneyler: [doğrulama kaydı](docs/VALIDATION.md).
+## 8. Kaynaklar
 
-Kaynak dosyalarını değiştirdikten sonra bağımsız notebook’u eşitle: `python tools/build_notebook.py`. Gerçek, yalnız kontrol amaçlı çıktılar [smoke_check](results/smoke_check/README.md) altında; bilimsel sonuç değildir.
+- Madry, A. et al. (2018), [*Towards Deep Learning Models Resistant to Adversarial Attacks*](https://arxiv.org/abs/1706.06083), ICLR.
+- [MadryLab MNIST Challenge (official implementation)](https://github.com/MadryLab/mnist_challenge).
+- Goodfellow, I. et al. (2015), [*Explaining and Harnessing Adversarial Examples*](https://arxiv.org/abs/1412.6572) — FGSM.
+- Croce, F. and Hein, M. (2020), [*Reliable Evaluation of Adversarial Robustness with an Ensemble of Diverse Parameter-free Attacks*](https://arxiv.org/abs/2003.01690) — AutoAttack.
+- Projede kullanılan kaynaklar ve BibTeX: [`docs/references.bib`](docs/references.bib).
+
+**Not:** Bu çalışma, robust accuracy'yi verilen PGD/AutoAttack saldırı protokolleri altında ampirik olarak ölçer; bütün olası adversarial perturbation'lara karşı güvenlik garantisi sunmaz.
