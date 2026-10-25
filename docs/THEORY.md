@@ -4,6 +4,14 @@ Elimizde bir rakam görüntüsü `x`, doğru etiket `y` ve ağırlıkları `θ` 
 
 ## 1. Min–max hedefini okuyalım
 
+Logit vektörü `z=fθ(x)` için doğru etiketin cross-entropy kaybı:
+
+\[
+\mathcal L(z,y)=-\log\frac{\exp z_y}{\sum_{k=1}^{10}\exp z_k}.
+\]
+
+Kod `cross_entropy` fonksiyonuna doğrudan logit verir; öncesinde softmax uygulamaz. Sonlu eğitim setinde normal ampirik risk `N^{-1}∑ᵢ L(fθ(xᵢ),yᵢ)` iken dayanıklı ampirik risk her terimi `max_{δ∈S(xᵢ)} L(fθ(xᵢ+δ),yᵢ)` ile değiştirir. Aşağıdaki beklenti bunun veri dağılımı üzerindeki hedefidir.
+
 \[
 \min_\theta\; \mathbb{E}_{(x,y)}\left[
 \max_{\delta\in S(x)}\mathcal{L}(f_\theta(x+\delta),y)
@@ -25,7 +33,7 @@ Bir görüntünün yakınında kaybı birinci dereceden Taylor yaklaşımıyla y
 \qquad g=\nabla_x\mathcal{L}(f_\theta(x),y).
 \]
 
-L∞ topunda bu doğrusal ifadenin maksimumu:
+Önce ek piksel kutusu sınırını dışarıda bırakırsak, L∞ topunda bu doğrusal ifadenin maksimumu:
 
 \[
 \max_{\|\delta\|_\infty\le\epsilon}g^\top\delta
@@ -87,5 +95,11 @@ Bu uygulamada dış adım, PGD algoritmasının bütün hesaplamalarından geriy
 Yalnız temizken doğru örnekleri paydaya alıp bunu genel dayanıklı doğruluk diye sunmuyoruz. Sıfır değişim de tehdit kümesinde olduğundan temizken yanlış bir örnek dayanıklı olamaz. `combined_accuracy`, temiz + FGSM + PGD adaylarının hepsini birlikte geçme oranıdır. Restart doğruluklarının ortalaması değildir.
 
 Bu metrik **ampirik saldırı doğruluğudur**. PGD'nin hata bulması bir zayıflık gösterir; hata bulamaması izinli bütün değişimlerin güvenli olduğunu kanıtlamaz. Daha fazla adım/restart bu aramayı güçlendirir, sertifikaya dönüştürmez. Sonuçları yorumlarken `ε`, `α`, adım, restart, test örnek sayısı ve seed'i birlikte belirt.
+
+## 6. Bu projede hangi saldırı nerede kullanılıyor?
+
+Eğitimden güçlü bir final testi kullanmak, bütün saldırılara dayanıklılık kanıtı değildir. Bu çalışmanın dondurulmuş **10.000 test örneği protokolü PGD100×5**; yazarların ayrıca bildirdiği **512 validation örneği kontrolü PGD100×20 ve AutoAttack**'tir. Örnek kümeleri ve bütçeler farklıdır. AutoAttack'in ek Square başarısı uyarısı varsa gradient masking'in kesin dışlandığını söyleyemeyiz. [AutoAttack'in resmî uygulaması](https://github.com/fra31/auto-attack)
+
+Curriculum ilk üç epoch'ta PGD10, kalan yedi epoch'ta PGD40 kullanır. İç max'ın yaklaşık çözümünü eğitim boyunca değiştirir; tehdit sınırı ε değişmez. Bu, orijinal makalenin birebir protokolü değil, gözlenen kararsızlıktan sonra yapılan deneysel müdahaledir. Sonuçlar bu seçim geçmişiyle yorumlanmalıdır.
 
 Koddaki karşılıklar: `mnist_robust/attacks.py`, `mnist_robust/experiment.py`. İlk smoke çalışmasından sonra bu dosyaları yukarıdaki iki gradyan ayrımını takip ederek okumak iyi bir ikinci adımdır.

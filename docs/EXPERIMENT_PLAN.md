@@ -1,87 +1,45 @@
-# Deney planı: önce çalışan zincir, sonra anlamlı karşılaştırma
+# Deney protokolü ve yeniden üretim rehberi
 
-## 1. Smoke test: bağlantılar doğru mu?
+Proje artık bir başlangıç taslağı değil. `results/FINAL_TEST_ALL_MODELS.csv`, üç yöntem × üç seed için dokuz kayıt içeriyor. Bu belge mevcut sonuçların kökenini yeni yeniden üretim koşularından ayırır.
 
-Notebook'un varsayılan `smoke` ayarını iki eğitim türünde çalıştır. Bu koşuda amaç iyi doğruluk almak değildir. Şunları görmeliyiz:
+## Korunacak deney ayrımları
 
-- MNIST indiriliyor ve tensör değerleri `[0,1]` aralığında.
-- İki convolution katmanlı ağ ileri/geri geçiş yapıyor.
-- FGSM ve PGD görüntüyü `[0,1]` aralığında ve orijinale L∞ uzaklığı `ε≤0.3` olacak şekilde tutuyor.
-- Eğitim kaybı, doğrulama, checkpoint, CSV ve görseller üretiliyor.
-- Daha fazla restart altında başarıyla saldırılmış bir örnek yanlışlıkla tekrar doğru sayılmıyor.
+| Deney | Veri | Bütçe / amaç | Kanıt durumu |
+|---|---|---|---|
+| Ana final test | 10.000 MNIST test görüntüsü | PGD100×5, ε=.3, α=.01; clean/FGSM de ölçüldü | Dokuz satırlık özgün CSV mevcut; ortalamalar yeniden hesaplanabilir |
+| Güçlü validation | Aynı olduğu bildirilen 512 validation görüntüsü | PGD100×20 ve full standard AutoAttack | Yazarların bildirdiği özet değerler; ham log/indeksler olmadan yeniden doğrulanmış sayılmaz |
+| Rutin checkpoint seçimi | Sabit 5.000 validation görüntüsü | Her epoch PGD40×1; baseline için temiz doğruluk | Güncel kaynak kodunda incelenebilir |
+| Smoke | 256/64/64 eğitim/validation/test | Küçük yazılım doğrulaması | Ana bilimsel sonuçlarla birleştirilmez |
 
-**Ekran görüntüsü:** GPU/CPU bilgisi, tüm smoke hücrelerinin tamamlandığı ekran, temiz ve saldırılmış görüntü örnekleri. Bunlar “deney ortamı çalışıyor” kanıtıdır; asıl başarı sonucu değildir.
+Ana CSV'de saldırı bütçesi sütunları ve örnek bazında tahminler yoktur. PGD100×5 protokol tanımı tarihî deney açıklamasına dayanır; CSV kontrolü bu saldırı çalışmasının bağımsız tekrarı değildir. Kaydedilmiş SHA-256 değerlerini doğrulamak için özgün checkpoint dosyaları gerekir.
 
-## 2. Pilot: öğrenme ve süreyi gözle
+## Üç yöntem ve tarihî curriculum
 
-`pilot`, önce `baseline`, sonra `adversarial`; başlangıçta seed 0. `--train-only` kullan. Normal eğitim sadece temiz görüntüyü görür. Adversarial eğitim her batch için mevcut modelle PGD örnekleri üretir ve o örneklerde güncelleme yapar.
+1. **Baseline:** 10 epoch temiz örneklerle eğitim.
+2. **PGD40 from scratch:** 10 epoch, ilk batch'ten itibaren PGD40. Başarısız seed1/2 çıkarılmaz: CSV'de clean/FGSM/PGD=.1135, seçilen epoch1. Tek sınıfa çökme ve 10 epoch'un tamamlanması yazarların süreç açıklamasıdır; CSV tek başına tahmin dağılımını veya bütün geçmişi kanıtlamaz. Ölü ReLU gibi nedensel açıklamalar hipotez olarak kalır.
+3. **Curriculum:** epoch1–3 PGD10, epoch4–10 PGD40. Tarihî koşularda önce üç epoch'luk probe checkpoint'leri ayrı curriculum klasörlerine taşınarak model, Adam, RNG ve epoch durumunun korunduğu bildiriliyor. Güncel entegre program aynı 3+7 saldırı bütçesini sıfırdan uygular; iki yürütme yolunun bit düzeyinde eşdeğer olduğu gösterilmedi.
 
-Aynı veri bölümü ve aynı ağ, iki eğitim yönteminin karşılaştırılmasını kolaylaştırır. Eşit epoch sayısı eşit hesaplama maliyeti değildir: PGD eğitimi birçok ek gradyan hesabı yapar. Süreyi de raporlamak bu farkı görünür kılar.
+`main_pgd10_probe` araştırma tarihini belgeleyen ek config'tir. Entegre curriculum koşusu için önce probe eğitmek **gerekmez**. Sadece `--resume` kullanarak farklı config'li probe checkpoint'ini yeni koşuya aktarmak desteklenen bir yöntem değildir; uyumsuzluk denetimini kaldırma.
 
-Kontrol et: kayıp sonlu mu, temiz doğrulama öğreniyor mu, PGD doğrulama nasıl değişiyor, bir epoch ne kadar sürüyor? Hiperparametre kararlarını burada ve doğrulama kümesinde ver. Test setini model seçimi için kullanma.
+## Yeniden çalıştırma sırası
 
-**Ekran görüntüsü:** iki eğitim türünün öğrenme eğrileri, kullanılan config ve süre. Bir hata varsa hata mesajını ve çözümünü deney günlüğüne yaz.
+1. Notebook'u temiz oturumda `smoke` ile çalıştır. Cihaz, config ve tamamlanma ekranını sakla.
+2. Gerekirse `pilot` ile süreyi ölç. Test için değil, kaynak bütçesi ve doğrulama davranışı için kullan.
+3. `main` için baseline ve adversarial; `main_curriculum_pgd10_to_pgd40` için adversarial; her birinde seed0/1/2. Bunlar ayrı notebook config koşularıdır.
+4. Eğitimde `--train-only` veya notebook'ta `PROTOCOL_FROZEN=False`. Checkpoint seçimi yalnız validation ile yapılır. Baseline temiz doğruluğu, adversarial modeller PGD doğruluğunu en yüksek yapan checkpoint'i seçer. Tam eşitlikte önceki checkpoint korunur.
+5. Ayarlar dondurulduktan sonra bütün checkpoint'lerde açıkça `--eval-steps 100 --eval-restarts 5` kullan. Notebook'ta `PROTOCOL_FROZEN=True` ve `FINAL_STRONG_EVAL=True` seç. Tarihî config'lerin varsayılan10 restart değerini final protokol sanma.
+6. Üç seed'in bütün değerlerini, ortalama ve **örnek std (ddof=1)** ile raporla. Farklı protokolleri veya kaynak sürümlerini tek ortalamada toplama.
 
-## 3. Ana deney: karşılaştırmayı önceden sabitle
+Free GPU oturumlarında Drive kaydı ve `EPOCHS_PER_CALL=1` kullanılabilir. Son tamamlanan epoch'tan devam edilir; kesilen epoch baştan yürür. Her epoch'un tam state'i `last.pt`, seçilen state `best.pt` olarak tutulur. Yeni değerlendirmeler önceki dosyaları değiştirmeden ayrı klasöre yazılır; `latest_evaluation.json` son konumu gösterir.
 
-Pilot sonrası ağ genişliği, epoch, optimizer, öğrenme oranı, eğitim PGD bütçesi ve checkpoint seçim kuralını dondur. Varsayılan `main` ayarları nihai karar yerine ilk bütçe önerisidir. Değişiklikleri yeni config dosyasında sakla.
+## Sonuçların yorumu
 
-Her iki eğitim yöntemi için seed kümesi **[0,1,2]**. Aynı seed numaralarını eşleştir ve bütün koşuları sakla. Eğitim/doğrulama bölümü sabit kalır; seed ağırlık başlangıcı, batch sırası ve saldırı rastgeleliğini etkiler. Donanım veya yazılım değişimleri tam bit düzeyinde eşitliği etkileyebilir; ortam kaydını karşılaştır.
+CSV'ye göre curriculum PGD100×5 doğruluğu **88.13±0.87%**; baseline **0.00±0.00%**; PGD40 **31.28±34.53%**. Son sayının yüksek yayılımı başarısız seed'leri açık eder. Normal doğruluk ve eğitim kararlılığı birlikte değerlendirilmelidir. Üç seed, yöntemin bütün ağlarda daha üstün olduğunu kanıtlamaz.
 
-Normal eğitim checkpoint'i temiz doğrulama doğruluğuyla; adversarial eğitim checkpoint'i saldırılı doğrulama doğruluğuyla seçilir. Bu farklılık raporda açık olmalı. Eğitim sonunda `last.pt` mevcut olsa da test için önceden belirlenen `best.pt` kullanılır.
+512 örnek validation skorlarını 10.000 test skoru ile eşdeğer protokol gibi kıyaslama. AutoAttack'in Square uyarısı ve ek bütçeyle bulunan hatalar saklanmamalı; gradient masking kesin olarak dışlanmış değildir. Matematiksel sertifika iddiası kurulmaz.
 
-Uzun koşuda saklama konumunu önce ayarla. Colab için Drive, Kaggle için `/kaggle/working` ve Save Version kullan. Bir epoch bitmeden oturum kesilirse o epoch yeniden çalışabilir.
+Tam eğitim geçmişleri mevcut değilse öğrenme eğrisi uydurma. Ayrı seed'lerin sonuçlarını epoch eğrisi gibi çizme. CSV'deki oranlar `[0,1]` aralığındadır; yüzde grafiğinde 100 ile çarpılır. Numbers'ta ondalık ayracı yanlış görünürse ham CSV'yi değiştirme.
 
-## 4. Dondurulmuş test: saldırıyı güçlendir
+## Deney kaydı
 
-Bütün kararlar verildikten sonra her checkpoint için:
-
-| Ölçüm | Amaç |
-|---|---|
-| Temiz test doğruluğu | Normal görüntülerde performans |
-| FGSM, ε=0.3 | Tek adımlı saldırıyla karşılaştırma |
-| PGD, ε=0.3, α=0.01, 100 adım, 20 restart | Eğitimden güçlü beyaz-kutu dayanıklılık testi |
-| Koşu ve değerlendirme süresi | Ücretsiz GPU bütçesini görünür kılma |
-
-PGD için modelin gradyanı kullanılabilir; saldırı **beyaz-kutu** ve **hedefsizdir**. Her restart kaybı büyütmeye çalışır. Örneğin herhangi bir başlangıç/adım/restart ile yanlış sınıflandırılması başarısızlık sayılır. Sıfır değişim de tehdit kümesinde olduğundan temizken yanlış olan örnek dayanıklı kabul edilmez.
-
-Finalden önce küçük doğrulama altkümesinde 40/100 adım ve 1/10/20 restart bütçelerini karşılaştırabilirsin. Bu bir saldırı kontrolüdür; test sonuçlarına göre ağı yeniden ayarlama. Birden çok saldırı bütçesini raporlarsan hangi checkpoint ve örnek kümesini kullandığını açık yaz. Daha güçlü saldırı bütçesinin tek rastgele çalışmada mutlaka daha düşük sayı üretmesi garanti değildir; ortak başlangıçlar ve birikimli başarısızlık takibi bu kontrolü daha anlamlı kılar.
-
-GPU süresi yetmezse sonucu gizleme: daha küçük bütçeyi açıkça yaz, bütün modellerde aynı protokolü kullan ve güçlü testin eksik kaldığını sınırlılık olarak belirt. Tam veri testi yapılmış gibi konuşma.
-
-## 5. Birleştirme ve yorum
-
-Özet CSV'de seed başına temiz/FGSM/PGD doğrulukları; toplu tabloda model türü, seed sayısı, ortalama ve **örnek standart sapma (ddof=1)** yer alır. Tek seed için standart sapma sıfırmış gibi sunulmaz. Yüzde değer ile yüzde puan farkını ayır: iki modelin doğruluk farkı yüzde puandır.
-
-Farklı config, veri kaynağı, test örnek sayısı, saldırı adımı veya restart bütçelerini tek ortalamada karıştırma. `smoke` ve `pilot` ana deneyin satır sayısını artırmaz. Üç seed belirsizliği göstermek için mütevazı bir başlangıçtır; güçlü istatistiksel genelleme iddiası kurma.
-
-Raporun merkezindeki grafik aynı protokol altında **normal eğitim / PGD eğitimi × temiz / FGSM / güçlü PGD** karşılaştırmasıdır. İkinci şekil öğrenme eğrileri; üçüncü şekil birkaç aynı örneğin temiz/saldırılmış görünümü olabilir. Örnekler tek başına nicel sonuç yerine geçmez.
-
-Şu sorulara sonuçlardan cevap ver:
-
-1. PGD eğitimi güçlü saldırı altındaki doğruluğu artırdı mı?
-2. Temiz doğrulukta ve hesaplama süresinde ne değişti?
-3. Sonuç seed'ler arasında tutarlı mı?
-4. Daha güçlü test önceki izlenimimizi değiştirdi mi?
-5. Makaledeki kurulumdan hangi farklar sonuçları açıklayabilir?
-
-Beklenen yön bir hipotezdir. Sonuç beklediğimiz gibi çıkmazsa kod, saldırı bütçesi ve optimizasyonu inceleyip eldeki sayıları dürüstçe raporlarız.
-
-## Deney günlüğü şablonu
-
-Her önemli koşu için bu alanları bir Markdown dosyasına veya paylaşılan grup günlüğüne ekle:
-
-```text
-Tarih / çalıştıran kişi:
-Git commit veya kullanılan kaynak arşivi:
-Config adı ve değişiklikler:
-Seed / model türü:
-GPU ve ortam:
-Checkpoint yolu:
-Epoch / eğitim süresi:
-Doğrulama gözlemi:
-Test açıldı mı? Ayarlar donduruldu mu?
-Saldırı bütçesi / test örnek sayısı:
-Çıktı arşivi ve ekran görüntüsü:
-Sonraki karar ve gerekçesi:
-```
+Yeni koşularda kaynak commit/fingerprint, config, seed, cihaz/ortam, checkpoint SHA-256, seçilen epoch, saldırı bütçesi, örnek sayısı ve çıktı konumu birlikte saklanmalı. Ekran görüntüleri anlatımı destekler; sayısal kayıtların yerine geçmez. Eski ölçüm dosyalarının üzerine yeni sonuç yazma.

@@ -1,10 +1,15 @@
 """Build the self-contained teaching notebook from the current project files."""
 from pathlib import Path
+import argparse
 import json
 import textwrap
 
 PROJECT = Path(__file__).resolve().parents[1]
 NOTEBOOK = PROJECT / "notebooks" / "01_mnist_reproduction.ipynb"
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--output", type=Path, default=NOTEBOOK, help="Write to this path; useful for isolated verification.")
+parser.add_argument("--check", action="store_true", help="Check synchronization without modifying the notebook.")
+args = parser.parse_args()
 cells = []
 
 
@@ -20,13 +25,17 @@ def code(text):
 md(r"""
 # CMP4509 — MNIST üzerinde PGD ile dayanıklı öğrenme
 
-Broski, ilk hedefimiz bütün zinciri küçük bir deneyle çalıştırmak: **veri → CNN → normal eğitim → saldırı → PGD eğitimi → daha güçlü test → CSV/grafik**.
+Bu notebook ile bütün zinciri yeniden çalıştırabiliriz: **veri → CNN → normal eğitim → saldırı → PGD eğitimi → daha güçlü test → CSV/grafik**.
 
-Bu notebook **kendi kaynak kodunu içerir**. Colab/Kaggle'da başka bir depo klonlamadan, yukarıdan aşağı çalışır. Varsayılan `smoke`, küçük bir çalışma kontrolüdür; bilimsel sonuç değildir. Asıl deneyler GPU'da çalıştırılınca gerçek sayıları raporlayacağız.
+Bu notebook **kendi kaynak kodunu içerir**. Colab/Kaggle'da başka bir depo klonlamadan, yukarıdan aşağı çalışır. Varsayılan `smoke`, küçük bir çalışma kontrolüdür; bilimsel sonuç değildir. Dokuz tarihî modelin gerçek final-test kayıtları depodaki `results/FINAL_TEST_ALL_MODELS.csv` dosyasında bulunur. Bu notebook yeni koşular üretir; eski checkpoint'leri veya sonuçları yeniden üretmiş sayılmaz.
+
+Arşivlenmiş dokuz kaydın istatistiğini eğitim yapmadan kontrol etmek için depodaki `02_verify_recorded_results.ipynb` kullanılır; bu aritmetik kontrol, tarihî saldırı çalışmasını yeniden yürütmez.
+
+Bu notebook'un kaynak dışa aktarımı eğitim için gereken dosyaları içerir. Gömülü README'deki rapor, diğer notebook ve denetim belgesi bağlantıları [tam GitHub deposuna](https://github.com/emirbakac/cmp4509-madry-mnist) aittir; bu ek teslim dosyaları yerel kaynak dışa aktarımına dahil değildir.
 
 Kaynaklar: [Madry ve ark., makale](https://arxiv.org/abs/1706.06083), [yazarların MNIST uygulaması](https://github.com/MadryLab/mnist_challenge).
 
-**Colab:** Runtime → Change runtime type → GPU. **Kaggle:** Settings → Accelerator → GPU, ilk MNIST indirmesi için Internet açık. GPU kotası ve erişim garanti değildir. `smoke` CPU'da çalışabilir; `pilot/main` için bu notebook CUDA GPU ister.
+**Colab:** Runtime → Change runtime type → GPU. **Kaggle:** Settings → Accelerator → GPU, ilk MNIST indirmesi için Internet açık. GPU kotası ve erişim garanti değildir. `smoke` CPU'da çalışabilir; smoke dışındaki config'ler için bu notebook CUDA GPU ister.
 
 Rapor: **13 Aralık 2026, 23:59**; gerçek `CMP4509_report_template.zip` şablonu kullanılacak. Sunum: **30 Kasım veya 7 Aralık**, QA dahil **10 dakika**. Public GitHub bağlantısı raporda bulunmalı.
 """)
@@ -74,9 +83,9 @@ if torch.cuda.is_available():
 md("""
 ## 2 · Deney ayarları ve kalıcı kayıt
 
-İlk çalıştırmada hiçbir şeyi değiştirmeden ilerle. Sonra `pilot` ile öğrenme ve süreyi gözle. `main`, her iki eğitim yöntemi için üç seed kullanır. **Eğitim ve model seçimi doğrulama setiyle yapılır.** `EPOCHS_PER_CALL=1` ile ücretsiz GPU oturumlarında eğitimi birer epoch parçalara ayırabilirsin; test bütün epoch'lar tamamlanana kadar bekler. `pilot/main` testini ancak bütün ayarları dondurunca `PROTOCOL_FROZEN = True` ile aç.
+İlk çalıştırmada `smoke` ile ilerle. `main`, baseline ve PGD40 için üç seed; `main_curriculum_pgd10_to_pgd40`, entegre PGD10→PGD40 için üç seed kullanır. Bu config'ler **ayrı notebook koşularıdır**. `main_pgd10_probe` isteğe bağlı üç epoch araştırma koşusudur; entegre curriculum için önce çalıştırılması gerekmez. Tarihî ölçümler ayrı probe checkpoint'lerinden transferle elde edilmiştir; entegre programın o dosyalarla bit düzeyinde aynı sonucu vermesi doğrulanmamıştır. **Eğitim ve model seçimi doğrulama setiyle yapılır.** `EPOCHS_PER_CALL=1` ile ücretsiz GPU oturumlarında eğitimi birer epoch parçalara ayırabilirsin; test bütün epoch'lar tamamlanana kadar bekler. `pilot/main` testini ancak bütün ayarları dondurunca `PROTOCOL_FROZEN = True` ile aç.
 
-Final rapor için `CONFIG_NAME = "main"`, `PROTOCOL_FROZEN = True`, `FINAL_STRONG_EVAL = True` kullan: 100 PGD adımı × 5 restart. Önceden eğitilmiş checkpoint varsa eğitim son tamamlanan epoch'tan devam eder; tamamlanmışsa yalnız değerlendirme ilerler.
+Final karşılaştırmada `CONFIG_NAME = "main"` ve ardından `"main_curriculum_pgd10_to_pgd40"` koşularını kullan; her birinin testinde `PROTOCOL_FROZEN = True`, `FINAL_STRONG_EVAL = True` seç: 100 PGD adımı × 5 restart. Önceden eğitilmiş checkpoint varsa eğitim son tamamlanan epoch'tan devam eder; tamamlanmışsa yalnız değerlendirme ilerler.
 
 Colab'da uzun koşudan önce `USE_GOOGLE_DRIVE = True` yap. Drive bağlamak kullanıcı girişini gerektirebilir. Kaggle çıktıları `/kaggle/working` altında saklanır; oturum sonunda **Save Version** yap. Aynı kayıt kökünde config'ini değiştirme: değiştirilmiş deney için yeni config adı/kayıt kökü kullan.
 """)
@@ -84,7 +93,7 @@ code(r"""
 from pathlib import Path
 import os
 
-CONFIG_NAME = "smoke"                    # "smoke", "pilot", "main"
+CONFIG_NAME = "smoke"                    # smoke, pilot, main, main_pgd10_probe, main_curriculum_pgd10_to_pgd40
 MODES = (
     ["baseline", "adversarial"]
     if CONFIG_NAME in {"smoke", "pilot", "main"}
@@ -136,16 +145,18 @@ if USE_GOOGLE_DRIVE:
     ARTIFACT_ROOT = Path("/content/drive/MyDrive/CMP4509_madry")
 else:
     ARTIFACT_ROOT = BASE_DIR / "madry_mnist_outputs"
+RUN_CONFIG_NAME = CONFIG_NAME + ("_synthetic" if SYNTHETIC else "")
 RUN_ROOT = ARTIFACT_ROOT / ("synthetic_runs" if SYNTHETIC else "runs")
-RESULTS_DIR = ARTIFACT_ROOT / ("synthetic_results" if SYNTHETIC else "results")
+RESULTS_DIR = ARTIFACT_ROOT / ("synthetic_results" if SYNTHETIC else "results") / RUN_CONFIG_NAME
 RUN_ROOT.mkdir(parents=True, exist_ok=True)
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 os.chdir(PROJECT_DIR)
-for name in ["mnist_robust", "configs", "docs"]:
+for name in ["mnist_robust", "configs", "docs", "results"]:
     Path(name).mkdir(exist_ok=True)
 
-RUN_CONFIG_NAME = CONFIG_NAME + ("_synthetic" if SYNTHETIC else "")
 RUN_TEST_EVALUATION = CONFIG_NAME == "smoke" or PROTOCOL_FROZEN
+if RUN_TEST_EVALUATION and CONFIG_NAME in {"main", "main_curriculum_pgd10_to_pgd40"} and not FINAL_STRONG_EVAL:
+    raise ValueError("Final main/curriculum testi için FINAL_STRONG_EVAL=True seçin: PGD100 x 5. Config varsayılanı 10 restart tarihî uyumluluk için korunur.")
 print("Kaynak:", PROJECT_DIR)
 print("Kalıcı/indirilecek çıktılar:", ARTIFACT_ROOT)
 print("Config:", CONFIG_NAME, "| Modeller:", MODES, "| Seed'ler:", SEEDS)
@@ -171,7 +182,7 @@ source_files = sorted((PROJECT / "mnist_robust").glob("*.py")) + sorted((PROJECT
 if not source_files or not list((PROJECT / "mnist_robust").glob("experiment.py")):
     raise SystemExit("Package is not ready; generate only after experiment.py and configs exist.")
 # Embed documentation too, so the notebook's downloaded source is usable on its own.
-for extra in ["requirements.txt", "README.md", "docs/EXPERIMENT_PLAN.md", "docs/COURSE_DELIVERABLES.md", "docs/THEORY.md", "docs/references.bib", "docs/VALIDATION.md"]:
+for extra in ["requirements.txt", "README.md", "docs/EXPERIMENT_PLAN.md", "docs/COURSE_DELIVERABLES.md", "docs/THEORY.md", "docs/references.bib", "docs/VALIDATION.md", "results/README.md", "results/FINAL_TEST_ALL_MODELS.csv", "results/FINAL_TEST_PROTOCOL.json", "results/validation_reported.json"]:
     p = PROJECT / extra
     if p.exists():
         source_files.append(p)
@@ -182,7 +193,7 @@ for p in source_files:
 md("""
 ## 4 · Önce eğit ve doğrula
 
-Her mode/seed ayrı klasöre kaydedilir. Bu hücre **test setini açmaz**. Baseline temiz doğrulama, PGD eğitimli model saldırılı doğrulama üzerinden en iyi checkpoint'i seçer. `last.pt` devam etmek, `best.pt` daha sonra test etmek içindir.
+Her mode/seed ayrı klasöre kaydedilir. Bu hücre **test setini değerlendirmez**; checkpoint seçimi yalnız validation sonuçlarını kullanır. Baseline temiz doğrulama, PGD eğitimli model saldırılı doğrulama üzerinden en iyi checkpoint'i seçer. `last.pt` devam etmek, `best.pt` daha sonra test etmek içindir. Tam eşit validation skorunda önceki checkpoint korunur. Her PGD adımı için bütün gradyan zinciri tutulmaz; son saldırılı örnekten ayrı dış eğitim adımı alınır.
 
 PGD eğitimi aynı epoch sayısında normal eğitimden çok daha pahalıdır. Pilot süresini ölçmeden ana deneyin süresini varsayma. Önbelleğe alınmamış MNIST ilk seferde indirilecektir; sentetik smoke kullanılırsa bunun gerçek veri sonucu olmadığını çıktıda koruyoruz.
 """)
@@ -215,7 +226,11 @@ TRAINING_COMPLETE = True
 for mode in MODES:
     for seed in SEEDS:
         history_path = RUN_ROOT / RUN_CONFIG_NAME / mode / f"seed_{seed}" / "history.csv"
-        completed_epochs = len(list(csv.DictReader(history_path.open()))) if history_path.exists() else 0
+        if history_path.exists():
+            with history_path.open() as handle:
+                completed_epochs = max((int(row["epoch"]) for row in csv.DictReader(handle)), default=0)
+        else:
+            completed_epochs = 0
         TRAINING_COMPLETE &= completed_epochs >= config_epochs
         print(f"{mode}/seed_{seed}: {completed_epochs}/{config_epochs} epoch")
 print("Bütün eğitimler tamam mı?", TRAINING_COMPLETE)
@@ -229,7 +244,7 @@ Smoke'ta küçük test otomatik açık. Pilot/main'de `PROTOCOL_FROZEN=True` ger
 
 Bir örnek herhangi bir restart/PGD adımında yanlış sınıflandırıldıysa saldırı başarılı sayılır. Restart doğruluklarının ortalamasını almak fazla iyimser sonuç verir. Temizken yanlış olan bir örnek de dayanıklı sayılmaz. FGSM tek adımdır; PGD yinelemelidir. Final PGD100×5, `main` eğitim PGD40'tan güçlüdür ve pahalı olabilir.
 
-Bu test seçilen saldırı altında ampirik dayanıklılık ölçer; bütün olası saldırılara karşı garanti vermez.
+Bu test seçilen saldırı altında ampirik dayanıklılık ölçer; bütün olası saldırılara karşı garanti vermez. Ayrı bildirilen 512 validation örneğindeki PGD100×20/AutoAttack ölçümü bu hücre tarafından yapılmaz. Yeni değerlendirmeler benzersiz klasörlere kaydedilir; eski çıktılar korunur.
 """)
 code(r"""
 EVALUATION_COMPLETED = False
@@ -279,7 +294,11 @@ if EVALUATION_COMPLETED:
         if figure.exists():
             display(Image(filename=str(figure)))
     for mode in MODES:
-        example = RUN_ROOT / RUN_CONFIG_NAME / mode / f"seed_{SEEDS[0]}" / "examples.png"
+        example_run = RUN_ROOT / RUN_CONFIG_NAME / mode / f"seed_{SEEDS[0]}"
+        pointer = example_run / "latest_evaluation.json"
+        if not pointer.exists():
+            raise FileNotFoundError(f"Yeni değerlendirme işaretçisi bulunamadı: {pointer}")
+        example = example_run / __import__("json").loads(pointer.read_text())["examples"]
         if example.exists():
             display(Markdown(f"**{CONFIG_NAME} · {mode} · seed {SEEDS[0]}**"))
             display(Image(filename=str(example)))
@@ -302,7 +321,9 @@ import json
 import shutil
 import zipfile
 from datetime import datetime, timezone
+from uuid import uuid4
 
+archive_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ") + "_" + uuid4().hex[:8]
 manifest = {
     "created_utc": datetime.now(timezone.utc).isoformat(),
     "config_name": CONFIG_NAME, "modes": MODES, "seeds": SEEDS,
@@ -311,11 +332,11 @@ manifest = {
     "note": "Smoke is a pipeline check, not a scientific result.",
     "session_training_seconds": training_wall_seconds,
 }
-(ARTIFACT_ROOT / "notebook_manifest.json").write_text(
+(ARTIFACT_ROOT / f"notebook_manifest_{CONFIG_NAME}_{archive_id}.json").write_text(
     json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"
 )
-archive_path = BASE_DIR / f"madry_mnist_{CONFIG_NAME}_artifacts.zip"
-with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+archive_path = BASE_DIR / f"madry_mnist_{CONFIG_NAME}_{archive_id}_artifacts.zip"
+with zipfile.ZipFile(archive_path, "x", compression=zipfile.ZIP_DEFLATED) as archive:
     for root, prefix in [(PROJECT_DIR, "project"), (ARTIFACT_ROOT, "artifacts")]:
         for p in sorted(root.rglob("*")):
             if not p.is_file() or "__pycache__" in p.parts or p.suffix == ".pyc":
@@ -363,6 +384,12 @@ notebook = {
 }
 for i, cell in enumerate(cells):
     cell["id"] = f"madry-{i:03d}"
-NOTEBOOK.parent.mkdir(parents=True, exist_ok=True)
-NOTEBOOK.write_text(json.dumps(notebook, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-print(f"Wrote {NOTEBOOK} ({len(cells)} cells, {NOTEBOOK.stat().st_size} bytes)")
+serialized = json.dumps(notebook, ensure_ascii=False, indent=2) + "\n"
+if args.check:
+    if not args.output.exists() or args.output.read_text(encoding="utf-8") != serialized:
+        raise SystemExit(f"Notebook is not synchronized: {args.output}. Run python tools/build_notebook.py.")
+    print(f"Notebook synchronized: {args.output} ({len(cells)} cells)")
+else:
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(serialized, encoding="utf-8")
+    print(f"Wrote {args.output} ({len(cells)} cells, {args.output.stat().st_size} bytes)")

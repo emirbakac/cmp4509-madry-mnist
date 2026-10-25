@@ -1,0 +1,16 @@
+{
+  "measurement_file": "FINAL_TEST_ALL_MODELS.csv",
+  "measurement_sha256": "654e9696f9a11c86e514b44ea9bd9d38fcfb81dabb281d7482b25f8e7de5d345",
+  "protocol_provenance": "Frozen protocol reported by the author and supplied manuscript. The compact original CSV itself does not encode attack settings, execution environment, data indices, or code revision.",
+  "dataset": "MNIST", "split": "test", "n_examples_per_checkpoint": 10000,
+  "norm": "Linf", "epsilon": 0.3, "pixel_range": [0, 1],
+  "pgd_steps": 100, "pgd_alpha": 0.01, "pgd_random_restarts": 5,
+  "attack_objective": "untargeted cross-entropy",
+  "training_seeds": [0, 1, 2],
+  "reported_checkpoint_selection": "Best clean validation for baseline, best PGD validation for adversarial conditions; first epoch wins ties in audited code.",
+  "checkpoint_files_available_to_audit": false,
+  "historical_execution_replayed": false,
+  "historical_code_revision": null,
+  "historical_eval_rng_seed": null,
+  "audit_status": "Nine source rows, all aggregates, denominators, ranges, and hash syntax checked; actual trained checkpoints and historical evaluation process not independently replayed."
+}

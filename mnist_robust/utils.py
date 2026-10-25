@@ -1,13 +1,27 @@
 """Seed ve ortam kaydı: sonuçlar kullanılan koşullarla birlikte saklanır."""
 
 from importlib.metadata import PackageNotFoundError, version
+import hashlib
+import json
 import os
+from pathlib import Path
 import platform
 import random
 import sys
 
 import numpy as np
 import torch
+
+
+def source_fingerprint():
+    """Hash the executed package sources, including standalone notebook exports.
+
+    This records future runs only; it cannot recover historical source versions.
+    """
+    files = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+             for path in sorted(Path(__file__).parent.glob('*.py'))}
+    digest = hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()
+    return {'sha256': digest, 'files': files}
 
 
 def seed_everything(seed: int):

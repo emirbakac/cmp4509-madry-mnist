@@ -6,6 +6,7 @@ import json
 import os
 import random
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,7 +17,7 @@ import torch.nn.functional as F
 from .attacks import fgsm, pgd_linf
 from .data import make_loaders
 from .model import SmallCNN
-from .utils import environment_info, resolve_device, seed_everything
+from .utils import environment_info, resolve_device, seed_everything, source_fingerprint
 
 
 def write_json(path, value):
@@ -26,10 +27,18 @@ def write_json(path, value):
 def write_csv(path, rows):
     if not rows:
         return
-    with open(path, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
-        writer.writeheader()
-        writer.writerows(rows)
+    path = Path(path)
+    temporary = path.with_name(f'.{path.name}.{uuid.uuid4().hex}.tmp')
+    try:
+        with temporary.open('w', newline='') as f:
+            # Resuming historical checkpoints may add newly recorded columns.
+            fields = list(dict.fromkeys(key for row in rows for key in row))
+            writer = csv.DictWriter(f, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(rows)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def rng_state(loader=None):
@@ -56,6 +65,17 @@ def save_checkpoint(path, state):
     temporary = path.with_suffix('.tmp')
     torch.save(state, temporary)
     os.replace(temporary, path)
+
+
+def training_steps(cfg, epoch):
+    """epoch is zero-based: curriculum uses PGD10 for 0,1,2, then PGD40."""
+    if not isinstance(epoch, int) or isinstance(epoch, bool) or epoch < 0:
+        raise ValueError('epoch must be a nonnegative integer.')
+    curriculum = cfg.get('curriculum')
+    if curriculum is None:
+        return cfg['train_steps']
+    stage = 'epochs_1_to_3' if epoch < 3 else 'epochs_4_to_10'
+    return curriculum[stage]['train_steps']
 
 
 def validate(model, loader, device, cfg, seed):
@@ -87,6 +107,10 @@ def train(model, loaders, device, cfg, args, run_dir):
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg['lr'])
     start, best_score, history = 0, -1.0, []
     last = run_dir / 'last.pt'
+    if args.resume and not last.is_file():
+        raise FileNotFoundError(f'Cannot resume: {last} is missing. Check the run directory before starting a new run.')
+    if not last.exists() and any((run_dir / name).exists() for name in ('best.pt', 'history.csv')):
+        raise FileExistsError('Run contains best.pt/history.csv but no last.pt. Preserve these partial or archived artifacts; use --eval-only for best.pt or a new --output-dir.')
     if last.exists():
         if not args.resume:
             raise FileExistsError(f'{last} exists. Use --resume or a new --output-dir.')
@@ -101,22 +125,20 @@ def train(model, loaders, device, cfg, args, run_dir):
                     values[key] = value.to(device)
         start, best_score, history = state['epoch'], state['best_score'], state['history']
         restore_rng(state['rng'], loaders['train'])
+        # A process can stop after publishing last.pt but before its CSV. The
+        # checkpoint is authoritative, including when all epochs are complete.
+        write_csv(run_dir / 'history.csv', history)
     end = cfg['epochs']
     if args.epochs_per_call:
         end = min(end, start + args.epochs_per_call)
     for epoch in range(start, end):
         begin = time.monotonic()
         model.train()
+        steps = training_steps(cfg, epoch) if args.mode == 'adversarial' else 0
         loss_sum, correct, total = 0., 0, 0
         for x, y in loaders['train']:
             x, y = x.to(device), y.to(device)
             if args.mode == 'adversarial':
-                steps = cfg['train_steps']
-            
-                curriculum = cfg.get('curriculum')
-                if curriculum is not None and epoch < 3:
-                    steps = curriculum['epochs_1_to_3']['train_steps']
-            
                 x = pgd_linf(
                     model, x, y,
                     eps=cfg['epsilon'],
@@ -138,16 +160,20 @@ def train(model, loaders, device, cfg, args, run_dir):
         improved = score > best_score
         best_score = max(best_score, score)
         row = {'epoch': epoch + 1, 'train_loss': loss_sum / total,
+               'train_pgd_steps': steps,
                'train_accuracy': correct / total, 'val_clean_accuracy': val_clean,
                'val_pgd_accuracy': val_pgd, 'seconds': time.monotonic() - begin}
         history.append(row)
         state = {'model': model.state_dict(), 'optimizer': optimizer.state_dict(),
                  'epoch': epoch + 1, 'best_score': best_score, 'history': history,
                  'config': cfg, 'seed': args.seed, 'mode': args.mode,
-                 'synthetic': args.synthetic, 'rng': rng_state(loaders['train'])}
-        save_checkpoint(last, state)
+                 'synthetic': args.synthetic, 'rng': rng_state(loaders['train']),
+                 'source': source_fingerprint()}
+        # Publish best before advancing last: an interruption must not leave
+        # last claiming an improvement whose best checkpoint was never saved.
         if improved:
             save_checkpoint(run_dir / 'best.pt', state)
+        save_checkpoint(last, state)
         write_csv(run_dir / 'history.csv', history)
         print(json.dumps(row), flush=True)
     return end >= cfg['epochs']
@@ -179,15 +205,21 @@ def evaluate(model, loader, device, cfg, args, run_dir, checkpoint):
     seed_everything(cfg['eval_seed'])
     steps = args.eval_steps if args.eval_steps is not None else cfg['eval_steps']
     restarts = args.eval_restarts if args.eval_restarts is not None else cfg['eval_restarts']
-    if steps <= cfg['train_steps'] or restarts <= 1:
+    max_training_steps = max(training_steps(cfg, epoch) for epoch in range(cfg['epochs']))
+    if steps <= max_training_steps or restarts <= 1:
         raise ValueError('Final PGD evaluation requires more steps than training and >1 restart.')
     protocol = {'epsilon': cfg['epsilon'], 'alpha': cfg['eval_alpha'], 'steps': steps,
                 'restarts': restarts, 'random_start': True, 'loss': 'cross_entropy',
                 'candidate_selection': 'success_first_all_iterates_including_clean',
                 'eval_seed': cfg['eval_seed'], 'batch_size': cfg['batch_size']}
+    source = source_fingerprint()
+    digest = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+    state = torch.load(checkpoint, map_location='cpu', weights_only=False)
     label = f'pgd{steps}_r{restarts}'
-    eval_dir = run_dir / 'evaluations' / label
-    eval_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+    eval_dir = run_dir / 'evaluations' / f'{label}_{stamp}_{uuid.uuid4().hex[:8]}'
+    eval_dir.mkdir(parents=True, exist_ok=False)
+    print(f'New evaluation output: {eval_dir}', flush=True)
     rows, examples = [], None
     begin = time.monotonic()
     for x, y in loader:
@@ -207,8 +239,8 @@ def evaluate(model, loader, device, cfg, args, run_dir, checkpoint):
         if examples is None:
             examples = tuple(t[:8].detach().cpu() for t in (x, xf, xp, y, pc, pf, pp))
         print(f'Evaluation {label}: {len(rows)}/{len(loader.dataset)}', flush=True)
-    digest = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
-    group = hashlib.sha256(json.dumps({'config': cfg, 'protocol': protocol, 'synthetic': args.synthetic}, sort_keys=True).encode()).hexdigest()[:16]
+    group = hashlib.sha256(json.dumps({'config': cfg, 'protocol': protocol, 'synthetic': args.synthetic,
+                                      'source_sha256': source['sha256']}, sort_keys=True).encode()).hexdigest()[:16]
     result = {'config_name': cfg['name'], 'protocol_id': group, 'mode': args.mode,
               'seed': args.seed, 'dataset': 'synthetic' if args.synthetic else 'MNIST',
               'n_test': len(rows), 'clean_accuracy': sum(r['clean_correct'] for r in rows) / len(rows),
@@ -216,18 +248,25 @@ def evaluate(model, loader, device, cfg, args, run_dir, checkpoint):
               'pgd_accuracy': sum(r['pgd_correct'] for r in rows) / len(rows),
               'combined_accuracy': sum(r['combined_correct'] for r in rows) / len(rows),
               'eval_steps': steps, 'eval_restarts': restarts, 'epsilon': cfg['epsilon'],
-              'checkpoint_sha256': digest, 'eval_seconds': time.monotonic() - begin}
-    state = torch.load(checkpoint, map_location='cpu', weights_only=False)
+              'checkpoint_sha256': digest, 'source_sha256': source['sha256'],
+              'eval_seconds': time.monotonic() - begin}
     result['selected_epoch'] = state['epoch']
     detail = {'metrics': result, 'protocol': protocol, 'config': cfg,
-              'checkpoint': str(checkpoint), 'interpretation': 'Smoke/synthetic is plumbing only; empirical attack accuracy is not certified robustness.'}
-    for folder in (eval_dir, run_dir):
-        write_json(folder / 'evaluation.json', detail)
-        write_csv(folder / 'metrics.csv', [result])
+              'checkpoint': str(checkpoint), 'source': source,
+              'checkpoint_source': state.get('source'), 'environment': environment_info(),
+              'device_selected': str(device), 'created_utc': datetime.now(timezone.utc).isoformat(),
+              'interpretation': 'Smoke/synthetic is plumbing only; empirical attack accuracy is not certified robustness.'}
+    write_json(eval_dir / 'evaluation.json', detail)
     write_csv(eval_dir / 'per_example.csv', rows)
     plot_examples(eval_dir / 'examples.png', examples, cfg['epsilon'])
-    # Latest view for notebook convenience; all protocols remain under evaluations/.
-    (run_dir / 'examples.png').write_bytes((eval_dir / 'examples.png').read_bytes())
+    # metrics.csv marks a complete evaluation, so interrupted plots are not aggregated.
+    write_csv(eval_dir / 'metrics.csv', [result])
+    relative = eval_dir.relative_to(run_dir)
+    pointer = {'evaluation_dir': str(relative), 'metrics': str(relative / 'metrics.csv'),
+               'examples': str(relative / 'examples.png')}
+    pointer_tmp = run_dir / f'.latest_evaluation_{uuid.uuid4().hex}.tmp'
+    write_json(pointer_tmp, pointer)
+    os.replace(pointer_tmp, run_dir / 'latest_evaluation.json')
     print(json.dumps(result, indent=2), flush=True)
     return result
 
@@ -280,6 +319,7 @@ def main():
         env = environment_info()
         env.update({'device_selected': str(device), 'seed': args.seed,
                     'split_seed': cfg['split_seed'], 'synthetic': args.synthetic,
+                    'source': source_fingerprint(),
                     'session_started_utc': datetime.now(timezone.utc).isoformat()})
         if not (run_dir / 'environment.json').exists():
             write_json(run_dir / 'environment.json', env)

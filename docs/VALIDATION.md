@@ -1,16 +1,27 @@
-# Yerel doğrulama kaydı — 24 Ekim 2026
+# Verification record — 25 October 2026 audit
 
-Bu kayıt yazılım kontrolüdür; makalenin ana sonucunun tekrarlandığı anlamına gelmez.
+Verification has several distinct levels. The original measurements are preserved; checking their arithmetic does not rerun the historical training or attack jobs.
 
-- `python -m unittest discover -s tests -v`: **17 test geçti**.
-- Gerçek MNIST ile `smoke`, seed 0: baseline ve PGD adversarial eğitim, temiz/FGSM/PGD değerlendirme, checkpoint, CSV ve görseller başarıyla üretildi (CPU).
-- Bağımsız notebook'un bütün çalışma hücreleri yukarıdan aşağı, hata olmadan çalıştırıldı. İzole klasörde kaynaklar notebook tarafından oluşturuldu; daha önce indirilen gerçek MNIST önbelleği kullanıldı. Notebook `auto` cihaz seçimiyle Apple MPS üzerinde çalıştı. İlk sürüm 30 hücreydi; üç kaynak-belge hücresi eklenen son sürümün 33 hücresi de tekrar çalıştırıldı; hata yok. Yeniden çalıştırma mevcut checkpoint’lerden devam etmeyi de doğruladı.
-- Epoch sınırında kesilip devam edilen CPU adversarial eğitim, kesintisiz eğitimle aynı ağırlıkları verdi.
-- Saldırı sınırları, temiz girişteki hataların korunması, restart/ara-adım başarısızlıklarının kaybolmaması, model modunun ve gradientlerin korunması test edildi.
-- Farklı protokollerin ayrı gruplanması, örnek standart sapması (`ddof=1`) ve yinelenen seed reddi doğrulandı.
+## Recorded measurements
 
-Test ortamı: Python 3.13.0, PyTorch 2.14.1, torchvision 0.29.1, NumPy 2.4.4, pandas 3.0.2, matplotlib 3.10.9. İlk 13 çekirdek test ayrıca PyTorch 2.11.0 CPU ile geçti. Bu sürümleri Colab'a zorla kurmayın; platformun uyumlu CUDA paket çiftini koruyun. Her koşunun `environment.json` ve `sessions.jsonl` dosyalarını saklayın.
+- `results/FINAL_TEST_ALL_MODELS.csv` contains nine rows, three methods and seeds 0/1/2 for each, with 10,000 test images per row. Clean/FGSM/PGD values are fractions in `[0,1]` and the method summaries use sample SD (`ddof=1`).
+- `results/FINAL_TEST_PROTOCOL.json` records the unchanged CSV digest and clearly labels the PGD100×5 attack settings as historical author-supplied provenance. Those settings are not encoded in the original compact CSV.
+- `tools/verify_results.py` checks the preserved bytes, seed coverage, selected epochs, denominators, accuracy ranges and hash syntax; it recomputes statistics and derived figures. `results/verified/` contains derived arithmetic, not new model measurements.
+- Recorded checkpoint hash strings cannot be matched to original full-model bytes until those checkpoint files are available.
+- `results/validation_reported.json` preserves the separate rounded, author-reported 512-image PGD100×20/AutoAttack values. Raw logs, subset indices and per-example predictions are unavailable. Rounded percentages were not converted into invented observed counts.
 
-Henüz yapılmayanlar: Colab/Kaggle CUDA çalıştırması, pilot/main GPU eğitimleri, üç seed'in bilimsel karşılaştırması, final PGD100×20 testi. MPS'te smoke tamamlandı; MPS/CUDA için bit düzeyinde resume eşitliği ayrıca doğrulanmadı. Birden çok data worker yerelde test edilmedi; varsayılan `num_workers=0`.
+## Notebook contract tests executed
 
-Smoke yalnızca 256 eğitim / 64 doğrulama / 64 test örneği, bir epoch kullanır. Başarı oranları ana deney sonucu olarak rapora taşınmamalıdır. Tam deney sonuçları elde edilene kadar raporun bulgular bölümü açık kalır.
+`python -m unittest discover -s tests -p test_notebook.py -v`: **7 tests passed** during this audit. They cover deterministic generation, exact embedded package/config contents, all five config selections, seeds/modes, repeated settings in one kernel, frozen final100×5 command construction, blocked test calls before training completion/freezing, and read-only stale-notebook detection. These tests generate into temporary files and mock the expensive experiment commands; they do not train full models or run full AutoAttack.
+
+The first execution exposed a test assertion's macOS `/var` versus `/private/var` symlink representation; resolving both paths fixed the assertion. The generated settings behavior itself was unchanged by that test correction.
+
+`python -m py_compile tools/build_notebook.py` also completed successfully. After any further edits, regenerate `notebooks/01_mnist_reproduction.ipynb`, run `python tools/build_notebook.py --check`, and rerun the full suite. Current final full-suite and notebook execution outcomes are recorded in [FINAL_AUDIT.md](FINAL_AUDIT.md), rather than inferred from this narrower check.
+
+## Historical software verification
+
+The prior 24 October record reports 17 passing tests and an end-to-end real-MNIST smoke execution on CPU/Apple MPS, including checkpoint resume and artifact generation. Those checks concerned the earlier code/notebook version. They do not prove that the current notebook, CUDA full training, or historical nine-model experiment was independently replayed. Historical files in `results/smoke_check/` remain labeled as software checks.
+
+## Limits of this audit
+
+No nine-model retraining, full 10,000-image attack replay, or full AutoAttack run is performed for code auditing. Integrated curriculum scheduling and epoch-boundary resume can be tested cheaply, but that does not establish equivalence to the original probe-checkpoint transfer process. Cross-device bitwise equivalence is not assumed. Exact current test counts, actual notebook runs, report compilation/inspection and remaining template-provenance issues belong in [the final audit](FINAL_AUDIT.md).
